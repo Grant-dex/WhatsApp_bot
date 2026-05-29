@@ -2,7 +2,7 @@
   "name": "whatsapp-bot",
   "version": "1.0.0",
   "description": "WhatsApp Business Bot - AI-powered sales assistant",
-  "author": "Tide Power",
+  "author": "WhatsApp-bot",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -10,7 +10,7 @@
     "build:win": "electron-builder --win"
   },
   "build": {
-    "appId": "com.tidepower.whatsappbot",
+    "appId": "com.whatsappbot.app",
     "icon": "icon.icns",
     "productName": "WhatsApp-机器人",
     "directories": {

@@ -59,7 +59,7 @@ def _load_product_specs() -> str:
 def _build_system_prompt(customer: dict) -> str:
     notes = customer.get("notes", "")
     memory = f"\n客户历史：{notes}" if (notes and notes.strip() and notes.strip() != "N/A") else ""
-    return f"""你是泰德动力科技有限公司的销售顾问，通过 WhatsApp 和客户沟通。泰德动力专注燃气发电机组，功率范围 7kW-4.5MW，合作品牌包括 MWM、Lister Petter、济柴、MAN。{memory}
+    return f"""你是一名专业的销售顾问，通过 WhatsApp 和客户沟通。公司主营燃气发电机组，功率范围 7kW-4.5MW，合作品牌包括 MWM、Lister Petter、济柴、MAN。{memory}
 
 ## 聊天风格
 - 像真人销售在 WhatsApp 聊天，口语化、自然、有温度，不要像客服机器人
@@ -232,7 +232,7 @@ def generate_followup(customer: dict) -> str:
         resp = client.chat.completions.create(
             model=cfg.ai.model, max_tokens=400,
             messages=[
-                {"role": "system", "content": f"""You are a technical sales follow-up assistant for Tide Power, a gas generator manufacturer (7kW-4.5MW, OEM partner of MWM, Lister Petter, CNPC Jichai, MAN).
+                {"role": "system", "content": f"""You are a technical sales follow-up assistant for a gas generator manufacturer (7kW-4.5MW, OEM partner of MWM, Lister Petter, CNPC Jichai, MAN).
 
 Write a short, warm follow-up message in the customer's language. One or two sentences max, casual not pushy.
 

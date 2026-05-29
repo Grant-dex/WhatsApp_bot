@@ -67,7 +67,7 @@ class AppConfig(BaseModel):
 
 class BusinessConfig(BaseModel):
     owner_name: str = "Grant"
-    company_name: str = "Tide Power"
+    company_name: str = "WhatsApp-bot"
     quiet_hours_start: int = 21
     quiet_hours_end: int = 8
     max_auto_replies_per_hour: int = 30

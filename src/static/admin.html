@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>泰德动力 — 销售工作台</title>
+<title>WhatsApp-bot — 销售工作台</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -353,7 +353,7 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
   </div>
   <div class="logo-text">
-    <div class="logo-title">Tide Power</div>
+    <div class="logo-title">WhatsApp-bot</div>
     <div class="logo-sub">销售工作台</div>
   </div>
 </div>
@@ -602,7 +602,7 @@ async function loadDashboard(el) {
   ).join('');
 
   el.innerHTML = `
-    <div class="page-header"><h1>销售工作台</h1><p>${d.today} · 泰德动力 WhatsApp 机器人</p></div>
+    <div class="page-header"><h1>销售工作台</h1><p>${d.today} · WhatsApp-bot 机器人</p></div>
     <div class="stats">
       <div class="stat-card"><div class="stat-label">活跃客户</div><div class="stat-val" style="color:var(--teal)">${c.active_customers}</div><div class="stat-sub">共 ${c.total_customers} 个客户</div></div>
       <div class="stat-card"><div class="stat-label">今日待跟进</div><div class="stat-val" style="color:${c.due_overdue>0?'var(--orange)':'var(--text)'}">${c.due_today}</div><div class="stat-sub">${c.due_overdue} 个已逾期</div></div>
@@ -1411,7 +1411,7 @@ async function loadSetup(el) {
         <div style="width:56px;height:56px;border-radius:14px;background:linear-gradient(135deg,var(--teal),var(--accent));margin:0 auto 16px;display:flex;align-items:center;justify-content:center">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
         </div>
-        <h1 style="font-size:24px;font-weight:700;margin-bottom:6px">欢迎使用 Tide Power</h1>
+        <h1 style="font-size:24px;font-weight:700;margin-bottom:6px">欢迎使用 WhatsApp-bot</h1>
         <p style="font-size:14px;color:var(--text2)">首次使用请配置 API Key 以启用 AI 自动回复</p>
       </div>
       <div class="panel" style="text-align:left">
