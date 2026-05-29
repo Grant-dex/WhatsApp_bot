@@ -1,0 +1,55 @@
+{
+  "name": "whatsapp-bot",
+  "version": "1.0.0",
+  "description": "WhatsApp Business Bot - AI-powered sales assistant",
+  "author": "Tide Power",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:mac": "electron-builder --mac",
+    "build:win": "electron-builder --win"
+  },
+  "build": {
+    "appId": "com.tidepower.whatsappbot",
+    "icon": "icon.icns",
+    "productName": "WhatsApp-机器人",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "!../data",
+      "!../logs",
+      "!../__pycache__",
+      "!../*.pyc",
+      "!../node_modules"
+    ],
+    "extraResources": [
+      {
+        "from": "../bridge",
+        "to": "bridge"
+      },
+      {
+        "from": "../dist/whatsapp-bot-backend",
+        "to": "backend"
+      }
+    ],
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.business"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^42.3.0",
+    "electron-builder": "^24.0.0"
+  }
+}

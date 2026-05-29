@@ -1,0 +1,1519 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>泰德动力 — 销售工作台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── Reset & Base ───────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --teal:#0F766E;--teal-hover:#0D6B63;--teal-light:#CCFBF1;--teal-bg:#F0FDFA;
+  --accent:#14B8A6;--accent-light:#99F6E4;
+  --bg:#F4F3EF;--card:#FFFFFF;--border:#E8E7E3;--border-light:#F0EFEb;
+  --text:#1A2332;--text2:#5A6473;--text3:#9BA3AF;
+  --green:#15803D;--green-bg:#DCFCE7;--green-light:#F0FDF4;
+  --orange:#B45309;--orange-bg:#FEF3C7;--orange-light:#FFFBEB;
+  --red:#B91C1C;--red-bg:#FEE2E2;--red-light:#FFF5F5;
+  --blue:#1D4ED8;--blue-bg:#DBEAFE;--blue-light:#EFF6FF;
+  --gray-bg:#F8F7F4;--gray-hover:#F1F0EC;
+  --radius:12px;--radius-sm:7px;--radius-xs:5px;
+  --shadow:0 1px 4px rgba(0,0,0,0.05),0 0 0 1px rgba(0,0,0,0.03);
+  --shadow-md:0 4px 16px rgba(0,0,0,0.08),0 1px 4px rgba(0,0,0,0.04);
+  --nav-w:248px;--sidebar-w:380px;
+  --nav-bg:#0F2720;--nav-text:rgba(255,255,255,0.65);--nav-active:#fff;--nav-active-bg:rgba(255,255,255,0.1);
+}
+html,body{height:100%}
+body{
+  font-family:'Manrope','Noto Sans SC',-apple-system,BlinkMacSystemFont,sans-serif;
+  font-size:14px;color:var(--text);background:var(--bg);
+  display:flex;overflow:hidden;-webkit-font-smoothing:antialiased;
+}
+a{color:var(--teal);text-decoration:none}
+button{cursor:pointer;font-family:inherit;font-size:inherit}
+input,select,textarea{font-family:inherit;}
+
+/* ── Nav ─────────────────────────────────────────────────────── */
+nav{
+  width:var(--nav-w);min-width:var(--nav-w);background:var(--nav-bg);
+  display:flex;flex-direction:column;padding:0;z-index:10;
+  box-shadow:1px 0 0 rgba(0,0,0,0.12);
+}
+nav .logo{
+  padding:22px 20px 18px;font-weight:700;font-size:15px;color:#fff;
+  letter-spacing:-.2px;display:flex;align-items:center;gap:10px;
+  border-bottom:1px solid rgba(255,255,255,0.07);margin-bottom:10px;
+}
+nav .logo .logo-icon{
+  width:30px;height:30px;border-radius:8px;
+  background:linear-gradient(135deg,var(--accent) 0%,var(--teal) 100%);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+nav .logo .logo-icon svg{width:16px;height:16px;stroke:#fff;stroke-width:2.5}
+nav .logo-text{line-height:1.2}
+nav .logo-title{font-size:14px;font-weight:700;color:#fff;letter-spacing:-.2px}
+nav .logo-sub{font-size:10px;font-weight:500;color:rgba(255,255,255,0.4);letter-spacing:.3px;text-transform:uppercase}
+nav a{
+  display:flex;align-items:center;gap:10px;padding:9px 16px;margin:1px 10px;
+  font-size:13px;font-weight:500;color:var(--nav-text);
+  transition:all .15s;border-radius:8px;
+}
+nav a:hover{color:rgba(255,255,255,0.9);background:rgba(255,255,255,0.07)}
+nav a.active{color:var(--nav-active);background:var(--nav-active-bg);font-weight:600}
+nav a svg{width:17px;height:17px;flex-shrink:0;opacity:.85}
+nav a.active svg{opacity:1}
+nav .nav-section{
+  font-size:10px;color:rgba(255,255,255,0.28);padding:16px 26px 6px;
+  text-transform:uppercase;letter-spacing:.8px;font-weight:700;
+}
+nav .bridge-dot{
+  display:inline-block;width:7px;height:7px;border-radius:50%;margin-left:auto;
+  box-shadow:0 0 0 2px rgba(255,255,255,0.1);
+}
+nav .bridge-dot.online{background:#4ADE80}
+nav .bridge-dot.offline{background:#F87171}
+
+/* ── Pause toggle ────────────────────────────────────────── */
+.pause-toggle-area{
+  padding:14px 16px;border-top:1px solid rgba(255,255,255,0.07);margin-top:auto;
+  background:rgba(0,0,0,0.15);
+}
+.pause-toggle-area .toggle-row{display:flex;align-items:center;gap:10px}
+.pause-toggle{position:relative;width:40px;height:22px;cursor:pointer;flex-shrink:0}
+.pause-toggle input{opacity:0;width:0;height:0}
+.pause-toggle .slider{
+  position:absolute;inset:0;
+  background:rgba(255,255,255,0.15);
+  border-radius:22px;transition:.25s;border:1px solid rgba(255,255,255,0.1);
+}
+.pause-toggle .slider::before{
+  content:'';position:absolute;left:2px;bottom:2px;
+  width:16px;height:16px;background:#fff;border-radius:50%;transition:.25s;
+  box-shadow:0 1px 3px rgba(0,0,0,0.2);
+}
+.pause-toggle input:not(:checked)+.slider{background:#22C55E;border-color:#16A34A}
+.pause-toggle input:checked+.slider{background:#EF4444;border-color:#DC2626}
+.pause-toggle input:checked+.slider::before{transform:translateX(18px)}
+.pause-label{font-size:12px;font-weight:600;color:rgba(255,255,255,0.75)}
+.pause-label.paused{color:#FCA5A5}
+.pause-stats{font-size:10px;color:rgba(255,255,255,0.3);margin-top:5px;line-height:1.5}
+
+/* global banner */
+.banner-paused{
+  display:none;background:linear-gradient(90deg,#B91C1C,#DC2626);color:#fff;
+  text-align:center;padding:9px 16px;font-size:13px;font-weight:600;
+  letter-spacing:.1px;flex-shrink:0;
+}
+.banner-paused.show{display:block}
+
+/* ── Main wrapper ─────────────────────────────────────────────── */
+.main-wrapper{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+main{flex:1;overflow-y:auto;overflow-x:hidden}
+.page{display:none;padding:28px 32px;max-width:1240px;animation:fadeIn .2s ease}
+.page.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.page-header{margin-bottom:26px;display:flex;align-items:flex-start;justify-content:space-between}
+.page-header-left h1{font-size:26px;font-weight:700;color:var(--text);letter-spacing:-.5px;line-height:1.2}
+.page-header-left p{font-size:13px;color:var(--text3);margin-top:5px}
+.page-header h1{font-size:26px;font-weight:700;color:var(--text);letter-spacing:-.5px}
+.page-header p{font-size:13px;color:var(--text3);margin-top:5px}
+
+/* ── Stats row ────────────────────────────────────────────────── */
+.stats{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:24px}
+.stat-card{
+  background:var(--card);border-radius:var(--radius);padding:18px 20px;
+  min-width:150px;flex:1;box-shadow:var(--shadow);
+  border:1px solid var(--border);position:relative;overflow:hidden;
+  transition:box-shadow .15s,transform .15s;
+}
+.stat-card:hover{box-shadow:var(--shadow-md);transform:translateY(-1px)}
+.stat-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,var(--teal),var(--accent));opacity:0;
+  transition:opacity .2s;
+}
+.stat-card:hover::before{opacity:1}
+.stat-card .stat-label{font-size:11px;color:var(--text3);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+.stat-card .stat-val{font-size:28px;font-weight:700;font-family:'JetBrains Mono','Manrope',monospace;letter-spacing:-1px;line-height:1}
+.stat-card .stat-sub{font-size:11px;color:var(--text3);margin-top:6px;display:flex;align-items:center;gap:4px}
+
+/* ── Panels ───────────────────────────────────────────────────── */
+.panel{
+  background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);
+  border:1px solid var(--border);margin-bottom:18px;overflow:hidden;
+}
+.panel-header{
+  padding:14px 20px;border-bottom:1px solid var(--border-light);
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--gray-bg);
+}
+.panel-header h3{font-size:13px;font-weight:700;color:var(--text);letter-spacing:-.1px;display:flex;align-items:center;gap:8px}
+.panel-body{padding:16px 20px}
+.panel-body.no-pad{padding:0}
+
+/* ── Tables ───────────────────────────────────────────────────── */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{
+  text-align:left;padding:10px 16px;font-size:10.5px;font-weight:700;color:var(--text3);
+  text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);
+  background:var(--gray-bg);white-space:nowrap;
+}
+td{padding:11px 16px;border-bottom:1px solid var(--border-light);color:var(--text);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--gray-hover)}
+.mono{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:-.2px}
+
+/* ── Badges ───────────────────────────────────────────────────── */
+.badge{
+  display:inline-flex;align-items:center;padding:3px 9px;border-radius:100px;
+  font-size:11px;font-weight:600;white-space:nowrap;letter-spacing:.1px;
+}
+.badge-active{background:var(--teal-bg);color:var(--teal)}
+.badge-inactive{background:var(--gray-bg);color:var(--text2);border:1px solid var(--border)}
+.badge-blocked{background:var(--red-bg);color:var(--red)}
+.badge-opted_out{background:var(--red-bg);color:var(--red)}
+.badge-green{background:var(--green-bg);color:var(--green)}
+.badge-orange{background:var(--orange-bg);color:var(--orange)}
+.badge-red{background:var(--red-bg);color:var(--red)}
+.badge-blue{background:var(--blue-bg);color:var(--blue)}
+
+/* ── Buttons ──────────────────────────────────────────────────── */
+.btn{
+  display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius-sm);
+  font-size:13px;font-weight:600;border:none;transition:all .15s;letter-spacing:-.1px;
+}
+.btn-primary{
+  background:var(--teal);color:#fff;
+  box-shadow:0 1px 3px rgba(15,118,110,0.3);
+}
+.btn-primary:hover{background:var(--teal-hover);box-shadow:0 2px 6px rgba(15,118,110,0.4);transform:translateY(-1px)}
+.btn-primary:active{transform:translateY(0)}
+.btn-outline{
+  background:var(--card);color:var(--teal);
+  border:1.5px solid rgba(15,118,110,0.3);
+}
+.btn-outline:hover{background:var(--teal-bg);border-color:var(--teal)}
+.btn-danger{background:var(--red-light);color:var(--red);border:1.5px solid rgba(185,28,28,0.2)}
+.btn-danger:hover{background:var(--red);color:#fff}
+.btn-sm{padding:5px 11px;font-size:12px}
+.btn-xs{padding:3px 8px;font-size:11px;border-radius:5px}
+
+/* ── Inputs ───────────────────────────────────────────────────── */
+.input{
+  padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);
+  font-size:13px;background:var(--card);color:var(--text);outline:none;
+  transition:border-color .15s,box-shadow .15s;
+}
+.input:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(15,118,110,0.1)}
+.input::placeholder{color:var(--text3)}
+select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:30px}
+
+/* ── Chat ──────────────────────────────────────────────────────── */
+.chat-list{
+  border-right:1px solid var(--border);width:280px;min-width:280px;
+  overflow-y:auto;background:var(--gray-bg);
+}
+.chat-list-header{padding:12px 14px;border-bottom:1px solid var(--border);background:var(--card)}
+.chat-list-search{width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg);color:var(--text);outline:none}
+.chat-list-search:focus{border-color:var(--teal)}
+.chat-item{padding:12px 14px;border-bottom:1px solid var(--border-light);cursor:pointer;transition:background .1s}
+.chat-item:hover{background:var(--teal-bg)}
+.chat-item.active{background:var(--teal-bg);border-left:3px solid var(--teal)}
+.chat-item .chat-name{font-weight:600;font-size:13px;margin-bottom:3px;color:var(--text)}
+.chat-item.active .chat-name{color:var(--teal)}
+.chat-item .chat-preview{font-size:11.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+.chat-item .chat-meta{font-size:10.5px;color:var(--text3);margin-top:3px}
+
+.chat-area{flex:1;display:flex;flex-direction:column;overflow:hidden;background:#FDFCF9}
+.chat-header{
+  padding:14px 20px;border-bottom:1px solid var(--border);font-weight:600;font-size:14px;
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--card);box-shadow:0 1px 0 var(--border);
+}
+.chat-messages{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:10px;background:#F8F7F3}
+.chat-msg{max-width:72%;padding:10px 14px;border-radius:16px;font-size:13px;line-height:1.55;position:relative}
+.chat-msg.inbound{background:#fff;align-self:flex-start;border-bottom-left-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,0.06);border:1px solid var(--border-light)}
+.chat-msg.outbound{background:linear-gradient(135deg,#0F766E,#0D6B63);align-self:flex-end;border-bottom-right-radius:4px;color:#fff;box-shadow:0 2px 6px rgba(15,118,110,0.25)}
+.chat-msg.outbound .msg-time{color:rgba(255,255,255,0.6)}
+.chat-msg .msg-body{word-break:break-word}
+.chat-msg .msg-time{font-size:10px;color:var(--text3);margin-top:5px;text-align:right}
+.chat-msg .msg-badge{
+  font-size:9.5px;display:inline-block;padding:1px 6px;
+  border-radius:4px;background:rgba(255,255,255,0.2);color:rgba(255,255,255,0.9);
+  margin-left:4px;vertical-align:middle;
+}
+.chat-input-area{
+  padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:10px;
+  background:var(--card);align-items:flex-end;
+}
+.chat-input-area textarea{
+  flex:1;resize:none;border:1.5px solid var(--border);border-radius:var(--radius-sm);
+  padding:10px 14px;font-family:inherit;font-size:13px;outline:none;
+  min-height:42px;max-height:120px;background:var(--bg);color:var(--text);
+  transition:border-color .15s;line-height:1.5;
+}
+.chat-input-area textarea:focus{border-color:var(--teal);background:var(--card)}
+
+/* ── Detail sidebar ────────────────────────────────────────────── */
+.detail-sidebar{
+  width:var(--sidebar-w);min-width:var(--sidebar-w);background:var(--card);
+  border-left:1px solid var(--border);overflow-y:auto;padding:0;display:none;
+  box-shadow:-2px 0 12px rgba(0,0,0,0.04);
+}
+.detail-sidebar.open{display:block;animation:slideIn .2s ease}
+@keyframes slideIn{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}
+.detail-sidebar h4{font-size:16px;font-weight:700;letter-spacing:-.2px}
+.sidebar-header{padding:20px;border-bottom:1px solid var(--border);background:var(--gray-bg)}
+.sidebar-body{padding:20px}
+.detail-field{margin-bottom:14px}
+.detail-field label{
+  font-size:10px;color:var(--text3);display:block;margin-bottom:4px;
+  text-transform:uppercase;letter-spacing:.6px;font-weight:700;
+}
+.detail-field span{font-size:13px;color:var(--text);line-height:1.4}
+.detail-actions{display:flex;flex-direction:column;gap:8px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+
+/* ── Status timeline ───────────────────────────────────────────── */
+.timeline{position:relative;padding-left:22px}
+.timeline::before{content:'';position:absolute;left:7px;top:6px;bottom:6px;width:1px;background:var(--border)}
+.timeline-item{position:relative;margin-bottom:18px;font-size:13px}
+.timeline-item::before{
+  content:'';position:absolute;left:-18px;top:5px;width:8px;height:8px;
+  border-radius:50%;background:var(--teal);
+  box-shadow:0 0 0 3px var(--teal-bg);
+}
+.timeline-item.error::before{background:var(--red);box-shadow:0 0 0 3px var(--red-bg)}
+.timeline-item .tl-time{font-size:10.5px;color:var(--text3);font-family:'JetBrains Mono',monospace}
+.timeline-item .tl-text{color:var(--text);margin-top:3px;line-height:1.4}
+
+/* ── Search bar ────────────────────────────────────────────────── */
+.search-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:16px 20px;background:var(--gray-bg);border-bottom:1px solid var(--border)}
+.search-bar .input{min-width:220px}
+
+/* ── Divider ──────────────────────────────────────────────────── */
+.divider{height:1px;background:var(--border);margin:16px 0}
+
+/* ── Flex helpers ──────────────────────────────────────────────── */
+.flex{display:flex}.flex-col{flex-direction:column}.gap-sm{gap:8px}.gap-md{gap:16px}
+.items-center{align-items:center}.justify-between{justify-content:space-between}
+.flex-1{flex:1}.w-full{width:100%}.mt-sm{margin-top:8px}.mt-md{margin-top:16px}
+.mb-sm{margin-bottom:8px}.mb-md{margin-bottom:16px}
+.text-sm{font-size:12px}.text-xs{font-size:11px}.text-muted{color:var(--text2)}
+.text-right{text-align:right}
+
+/* ── Loading ──────────────────────────────────────────────────── */
+.loading{text-align:center;padding:48px;color:var(--text3)}
+.spinner{
+  display:inline-block;width:26px;height:26px;
+  border:2.5px solid var(--border);border-top-color:var(--teal);
+  border-radius:50%;animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── QR Code ──────────────────────────────────────────────────── */
+.qr-container{text-align:center;padding:28px}
+.qr-container canvas{
+  border:10px solid #fff;border-radius:12px;
+  box-shadow:0 4px 24px rgba(0,0,0,0.1);
+}
+.qr-hint{font-size:13px;color:var(--text2);margin-top:14px;line-height:1.5}
+.qr-success{text-align:center;padding:24px;color:var(--green);font-weight:600;display:none;font-size:15px}
+
+/* ── Empty state ──────────────────────────────────────────────── */
+.empty-state{text-align:center;padding:40px 20px;color:var(--text3)}
+.empty-state svg{margin:0 auto 12px;display:block;opacity:.4}
+.empty-state p{font-size:13px}
+
+/* ── Responsive ──────────────────────────────────────────────── */
+@media(max-width:1200px){.detail-sidebar{width:320px;min-width:320px}}
+@media(max-width:900px){
+  nav{width:64px;min-width:64px}
+  nav a span{display:none}
+  nav .logo-text{display:none}
+  nav .logo{justify-content:center;padding:18px 0 14px}
+  nav a{justify-content:center;padding:10px}
+  nav .nav-section{display:none}
+}
+
+/* ── Scrollbar ──────────────────────────────────────────────────── */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--text3)}
+</style>
+</head>
+<body>
+
+<!-- ── Navigation ─────────────────────────────────────────────── -->
+<nav>
+<div class="logo">
+  <div class="logo-icon">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+  </div>
+  <div class="logo-text">
+    <div class="logo-title">Tide Power</div>
+    <div class="logo-sub">销售工作台</div>
+  </div>
+</div>
+<a href="#dashboard" class="active" data-page="dashboard">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+  <span>工作台</span>
+</a>
+<a href="#customers" data-page="customers">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><path d="M19 8v6M22 11h-6" stroke-linecap="round"/></svg>
+  <span>客户管理</span>
+</a>
+<a href="#conversations" data-page="conversations">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+  <span>对话记录</span>
+</a>
+<a href="#followups" data-page="followups">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+  <span>跟进管理</span>
+</a>
+<a href="#orders" data-page="orders">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+  <span>订单管理</span>
+</a>
+<a href="#product-docs" data-page="product-docs">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+  <span>产品资料</span>
+</a>
+<div class="nav-section">系统</div>
+<a href="#bridge" data-page="bridge">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+  <span>桥接状态</span>
+  <span class="bridge-dot" id="nav-dot"></span>
+</a>
+<a href="#activity" data-page="activity">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="4 17 10 11 14 15 20 9"/></svg>
+  <span>运行日志</span>
+</a>
+<div class="pause-toggle-area">
+  <div class="toggle-row">
+    <label class="pause-toggle" title="暂停/恢复机器人">
+      <input type="checkbox" id="pause-switch" onchange="toggleBotPause()">
+      <span class="slider"></span>
+    </label>
+    <span class="pause-label" id="pause-label">运行中</span>
+  </div>
+  <div class="pause-stats" id="pause-stats"></div>
+</div>
+</nav>
+
+<!-- ── Main Content ────────────────────────────────────────────── -->
+<div class="main-wrapper">
+<div class="banner-paused" id="banner-paused">⏸ 机器人已暂停 — AI 自动回复和定时跟进均已停止</div>
+<main id="main-content">
+  <div class="page active" id="page-dashboard"></div>
+  <div class="page" id="page-customers"></div>
+  <div class="page" id="page-conversations"></div>
+  <div class="page" id="page-followups"></div>
+  <div class="page" id="page-orders"></div>
+  <div class="page" id="page-product-docs"></div>
+<div class="page" id="page-bridge"></div>
+  <div class="page" id="page-activity"></div>
+  <div class="page" id="page-setup"></div>
+</main>
+</div>
+
+<!-- ── Detail Sidebar ──────────────────────────────────────────── -->
+<aside class="detail-sidebar" id="detail-sidebar"></aside>
+
+<script>
+/* ── SPA Router ─────────────────────────────────────────────── */
+const API = '/admin/api';
+let currentPage = 'dashboard';
+let selectedCustomerId = null;
+let qrPollTimer = null;
+let convPollTimer = null;
+
+document.querySelectorAll('nav a[data-page]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    navigate(a.dataset.page);
+  });
+});
+
+window.addEventListener('hashchange', () => {
+  const page = location.hash.replace('#','') || 'dashboard';
+  navigate(page);
+});
+
+function navigate(page) {
+  if (!setupConfigured && page !== 'setup') {
+    page = 'setup';
+  }
+  if (qrPollTimer) { clearInterval(qrPollTimer); qrPollTimer = null; }
+  if (convPollTimer) { clearInterval(convPollTimer); convPollTimer = null; }
+  currentPage = page;
+  document.querySelectorAll('nav a').forEach(a => a.classList.toggle('active', a.dataset.page === page));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const el = document.getElementById('page-' + page);
+  if (el) el.classList.add('active');
+  closeSidebar();
+  location.hash = page;
+  loadPage(page);
+}
+
+function closeSidebar() { document.getElementById('detail-sidebar').classList.remove('open'); }
+function openSidebar(html) {
+  const s = document.getElementById('detail-sidebar');
+  s.innerHTML = html; s.classList.add('open');
+}
+
+/* ── API helpers ─────────────────────────────────────────────── */
+async function get(url) { const r = await fetch(API + url); return r.json(); }
+async function post(url, data) { const r = await fetch(API + url, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}); return r.json(); }
+function importCustomers() {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = '.xlsx,.csv';
+  inp.onchange = async () => {
+    const file = inp.files[0]; if (!file) return;
+    const fd = new FormData(); fd.append('file', file);
+    const r = await fetch(API + '/customers/import', {method:'POST', body:fd});
+    const d = await r.json();
+    if (d.error) { alert('导入失败：' + d.error); return; }
+    let msg = `导入完成！成功 ${d.imported} 条`;
+    if (d.skipped && d.skipped.length > 0) {
+      msg += `，跳过 ${d.skipped.length} 条`;
+      const details = d.skipped.slice(0, 10).map(s => `第${s.row}行: ${s.reason}`).join('\n');
+      msg += '\n\n跳过详情（最多显示10条）：\n' + details;
+    }
+    alert(msg);
+    loadCustomers(document.getElementById('page-customers'));
+  };
+  inp.click();
+}
+async function del(url) { const r = await fetch(API + url, {method:'DELETE'}); return r.json(); }
+async function put(url, data) { const r = await fetch(API + url, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}); return r.json(); }
+
+function formatPhone(p) { if (!p) return ''; return p.replace('@lid','').replace('@c.us',''); }
+function timeShort(t) { if (!t) return ''; return t.replace('T',' ').substring(0,16); }
+function ov(v, fb) { return (v === undefined || v === null) ? (fb||'—') : v; }
+function badgeStatus(s) {
+  const map = {active:'badge-active',inactive:'badge-inactive',blocked:'badge-blocked',opted_out:'badge-opted_out'};
+  const labels = {active:'活跃',inactive:'非活跃',blocked:'已屏蔽',opted_out:'已退订'};
+  return `<span class="badge ${map[s]||'badge-inactive'}">${labels[s]||s||'未知'}</span>`;
+}
+function badgeSent(s) {
+  return s === 'sent' ? '<span class="badge badge-green">已发送</span>'
+    : s === 'failed' ? '<span class="badge badge-red">失败</span>'
+    : '<span class="badge badge-orange">待处理</span>';
+}
+
+/* ── Page Loaders ────────────────────────────────────────────── */
+async function loadPage(page) {
+  const el = document.getElementById('page-' + page);
+  el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  switch(page) {
+    case 'dashboard': await loadDashboard(el); break;
+    case 'customers': await loadCustomers(el); break;
+    case 'conversations': await loadConversations(el); break;
+    case 'followups': await loadFollowups(el); break;
+    case 'orders': await loadOrders(el); break;
+    case 'product-docs': await loadProductDocs(el); break;
+    case 'bridge': await loadBridge(el); break;
+    case 'activity': await loadActivity(el); break;
+    case 'setup': await loadSetup(el); break;
+  }
+}
+
+/* ── Bot Pause ─────────────────────────────────────────────── */
+async function checkBotState() {
+  try {
+    const s = await get('/bot-state');
+    document.getElementById('pause-switch').checked = s.paused;
+    const label = document.getElementById('pause-label');
+    label.textContent = s.paused ? '已暂停' : '运行中';
+    label.className = 'pause-label' + (s.paused ? ' paused' : '');
+    document.getElementById('banner-paused').classList.toggle('show', s.paused);
+    document.getElementById('pause-stats').textContent =
+      `今日AI: ${s.today_ai_replies} · 跟进: ${s.today_followups}`;
+  } catch(e) {}
+}
+
+async function toggleBotPause() {
+  const r = await post('/bot-state/toggle', {});
+  document.getElementById('pause-switch').checked = r.paused;
+  const label = document.getElementById('pause-label');
+  label.textContent = r.paused ? '已暂停' : '运行中';
+  label.className = 'pause-label' + (r.paused ? ' paused' : '');
+  document.getElementById('banner-paused').classList.toggle('show', r.paused);
+}
+
+/* ── Dashboard ─────────────────────────────────────────────── */
+async function showFollowupDate(date) {
+  const d = await get('/followups/by-date?date=' + date);
+  let items = d.items.map(f => `
+    <tr>
+      <td style="font-weight:600">${f.name||formatPhone(f.phone)}</td>
+      <td class="mono">${formatPhone(f.phone)}</td>
+      <td>${f.company||'—'}</td>
+    </tr>`).join('');
+  openSidebar(`
+    <div class="sidebar-header">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <h4>📅 ${date} 跟进计划</h4>
+        <button onclick="closeSidebar()" style="background:none;border:none;color:var(--text3);font-size:18px;cursor:pointer">×</button>
+      </div>
+      <div style="font-size:12px;color:var(--text3);margin-top:4px">共 ${d.items.length} 个客户待跟进</div>
+    </div>
+    <div class="sidebar-body">
+    <div class="mt-md"><table>${items||'<tr><td colspan=3 class="text-muted" style="text-align:center;padding:20px">无</td></tr>'}</table></div>
+    <div class="detail-actions">
+      ${d.items.map(f => `
+        <button class="btn btn-outline btn-sm w-full" onclick="navigate('conversations');setTimeout(()=>selectCustomer(${f.customer_id}),200)">💬 ${f.name||formatPhone(f.phone)}</button>
+      `).join('')}
+    </div>
+    </div>`);
+}
+
+async function loadDashboard(el) {
+  const d = await get('/dashboard');
+  const c = d.counts;
+  const b = d.bridge;
+  let bridgeBadge = b.online ? (b.authenticated ? '<span class="badge badge-green">已连接</span>'
+    : '<span class="badge badge-orange">未认证</span>')
+    : '<span class="badge badge-red">离线</span>';
+  updateNavDot(b.online && b.authenticated);
+
+  let failRows = d.failed_recent.map(f =>
+    `<tr><td class="mono">${formatPhone(f.phone)}</td><td>${(f.error_message||'').substring(0,60)}</td><td class="text-muted">${timeShort(f.sent_at)}</td></tr>`
+  ).join('');
+
+  let activeRows = d.recent_active.map(r =>
+    `<tr>
+      <td><a href="#" onclick="navigate('conversations');setTimeout(()=>selectCustomer(${r.id}),200);return false" style="font-weight:600">${r.name||formatPhone(r.phone)}</a></td>
+      <td>${r.company||''}</td>
+      <td class="text-muted">${timeShort(r.last_contact)}</td>
+      <td>${badgeStatus(r.status)}</td>
+    </tr>`
+  ).join('');
+
+  let upcomingRows = d.upcoming.map(u =>
+    `<tr>
+      <td><a href="#" onclick="showFollowupDate('${u.date}');return false" style="font-weight:600;color:var(--teal)">${u.date}</a></td>
+      <td class="mono">${u.count}</td>
+      <td><span class="badge ${u.count<=20?'badge-green':'badge-blue'}">${u.count<=20?'优先':'常规'}</span></td>
+    </tr>`
+  ).join('');
+
+  el.innerHTML = `
+    <div class="page-header"><h1>销售工作台</h1><p>${d.today} · 泰德动力 WhatsApp 机器人</p></div>
+    <div class="stats">
+      <div class="stat-card"><div class="stat-label">活跃客户</div><div class="stat-val" style="color:var(--teal)">${c.active_customers}</div><div class="stat-sub">共 ${c.total_customers} 个客户</div></div>
+      <div class="stat-card"><div class="stat-label">今日待跟进</div><div class="stat-val" style="color:${c.due_overdue>0?'var(--orange)':'var(--text)'}">${c.due_today}</div><div class="stat-sub">${c.due_overdue} 个已逾期</div></div>
+      <div class="stat-card"><div class="stat-label">今日 AI 回复</div><div class="stat-val" style="color:var(--teal)">${c.today_ai_replies}</div><div class="stat-sub">${c.today_inbound} 条 incoming 消息</div></div>
+      <div class="stat-card"><div class="stat-label">已发送跟进</div><div class="stat-val">${c.sent_fu_today}</div><div class="stat-sub">今日 ${c.failed_fu_today} 条失败</div></div>
+      <div class="stat-card"><div class="stat-label">WhatsApp 桥接</div><div class="stat-val" style="font-size:18px;color:${b.online&&b.authenticated?'var(--green)':'var(--red)'}">${b.phone||'N/A'}</div><div class="stat-sub">${bridgeBadge}</div></div>
+      <div class="stat-card"><div class="stat-label">总对话数</div><div class="stat-val">${c.total_conversations}</div><div class="stat-sub">所有客户</div></div>
+    </div>
+    <div style="display:flex;gap:20px">
+      <div style="flex:1">
+        <div class="panel">
+          <div class="panel-header"><h3>最近活跃</h3></div>
+          <div class="panel-body no-pad"><table>${activeRows||'<tr><td colspan=4 class="text-muted" style="text-align:center;padding:20px">暂无活跃客户</td></tr>'}</table></div>
+        </div>
+      </div>
+      <div style="width:340px;min-width:340px">
+        <div class="panel">
+          <div class="panel-header"><h3>即将到来的跟进计划</h3></div>
+          <div class="panel-body no-pad"><table><thead><tr><th>日期</th><th>客户数</th><th>优先级</th></tr></thead><tbody>${upcomingRows||'<tr><td colspan=3 class="text-muted" style="text-align:center;padding:20px">暂无计划</td></tr>'}</tbody></table></div>
+        </div>
+        ${failRows ? `
+        <div class="panel">
+          <div class="panel-header"><h3>最近失败</h3></div>
+          <div class="panel-body no-pad"><table>${failRows}</table></div>
+        </div>` : ''}
+      </div>
+    </div>`;
+}
+
+/* ── Customers ─────────────────────────────────────────────── */
+let customerPage = 1, customerSearch = '', customerStatus = '';
+async function loadCustomers(el) {
+  const params = new URLSearchParams({page:customerPage,per_page:30,search:customerSearch,status:customerStatus});
+  const d = await get('/customers?' + params);
+  let rows = d.items.map(r => `
+    <tr>
+      <td><a href="#" onclick="viewCustomer(${r.id});return false" style="font-weight:600">${(r.name||'').substring(0,30)}</a></td>
+      <td class="mono">${formatPhone(r.phone)}</td>
+      <td>${(r.company||'').substring(0,25)}</td>
+      <td>${badgeStatus(r.status)}</td>
+      <td class="mono text-muted">${r.conv_count||0}</td>
+      <td class="text-muted text-sm">${timeShort(r.last_msg)||'—'}</td>
+      <td class="text-muted text-sm">${timeShort(r.next_fu)||'—'}</td>
+    </tr>`).join('');
+
+  let pages = Math.ceil(d.total / d.per_page);
+  el.innerHTML = `
+    <div class="page-header"><h1>客户管理</h1><p>共 ${d.total} 个客户 · 第 ${d.page}/${pages} 页</p></div>
+    <div class="panel" style="margin-bottom:16px">
+      <div class="search-bar">
+        <input class="input" placeholder="搜索姓名、电话、公司..." value="${customerSearch}" oninput="customerSearch=this.value;customerPage=1;loadCustomers(document.getElementById('page-customers'))" style="width:260px">
+        <select class="input" onchange="customerStatus=this.value;customerPage=1;loadCustomers(document.getElementById('page-customers'))">
+          <option value="">全部状态</option><option value="active">活跃</option><option value="inactive">非活跃</option><option value="blocked">已屏蔽</option><option value="opted_out">已退订</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="importCustomers()" style="margin-left:8px">📥 导入 Excel</button>
+        <span class="flex-1"></span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span style="font-size:12px;color:var(--text3)">第 ${d.page}/${pages} 页</span>
+          <button class="btn btn-outline btn-sm" ${customerPage<=1?'disabled':''} onclick="customerPage--;loadCustomers(document.getElementById('page-customers'))">← 上一页</button>
+          <button class="btn btn-outline btn-sm" ${customerPage>=pages?'disabled':''} onclick="customerPage++;loadCustomers(document.getElementById('page-customers'))">下一页 →</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel"><div class="panel-body no-pad">
+      <table><thead><tr><th>姓名</th><th>电话</th><th>公司</th><th>状态</th><th>消息数</th><th>最近联系</th><th>下次跟进</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan=7 class="text-muted" style="text-align:center;padding:20px">未找到客户</td></tr>'}</tbody></table>
+    </div></div>`;
+}
+
+async function viewCustomer(id) {
+  selectedCustomerId = id;
+  const d = await get('/customers/' + id);
+  const c = d.customer;
+  const fs = d.followup_schedule;
+  openSidebar(`
+    <div class="sidebar-header">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <h4>${c.name||formatPhone(c.phone)}</h4>
+        <button onclick="closeSidebar()" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;line-height:1">×</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        ${badgeStatus(c.status)}
+        <span style="font-size:12px;color:var(--text3)">${c.company||''}</span>
+      </div>
+    </div>
+    <div class="sidebar-body">
+    <div class="detail-field"><label>电话</label><input class="input" id="edit-phone" value="${formatPhone(c.phone)}" style="width:100%;padding:6px 10px"></div>
+    <div class="detail-field"><label>公司</label><input class="input" id="edit-company" value="${(c.company||'').replace(/"/g,'&quot;')}" style="width:100%;padding:6px 10px"></div>
+    <div class="detail-field"><label>备注</label><textarea class="input" id="edit-notes" style="width:100%;padding:6px 10px;min-height:50px;resize:vertical" rows="2">${(c.notes||'').replace(/</g,'&lt;')}</textarea></div>
+    <div class="detail-field"><label>标签</label><input class="input" id="edit-tags" value="${(c.tags||'').replace(/"/g,'&quot;')}" style="width:100%;padding:6px 10px"></div>
+    <div class="detail-field"><label>创建时间</label><span>${timeShort(c.created_at)}</span></div>
+    ${fs ? `<div style="background:var(--teal-bg);border:1px solid var(--teal-light);border-radius:8px;padding:12px;margin-bottom:14px">
+      <div style="font-size:10px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">跟进计划</div>
+      <div style="display:flex;gap:20px">
+        <div><div style="font-size:10px;color:var(--text3);margin-bottom:2px">下次跟进</div><div style="font-size:13px;font-weight:600;color:var(--teal)">${timeShort(fs.next_followup_at)}</div></div>
+        <div><div style="font-size:10px;color:var(--text3);margin-bottom:2px">频率</div><div style="font-size:13px;font-weight:600;color:var(--teal)">每 ${fs.frequency_days} 天</div></div>
+      </div>
+    </div>` : ''}
+    <div class="detail-actions">
+      <button class="btn btn-primary btn-sm w-full" onclick="saveCustomerEdits(${id})">保存修改</button>
+      <button class="btn btn-outline btn-sm w-full" onclick="navigate('conversations');setTimeout(()=>selectCustomer(${id}),200)">查看对话</button>
+      <button class="btn btn-danger btn-sm w-full" onclick="toggleCustomerStatus(${id},'${c.status==='active'?'inactive':'active'}')">${c.status==='active'?'暂停跟进':'恢复跟进'}</button>
+    </div>
+    </div>`);
+
+  if (d.conversations.length) {
+    const msgs = d.conversations.slice(-5).map(m => `
+      <div style="margin-bottom:10px;padding:8px 10px;background:${m.direction==='inbound'?'var(--gray-bg)':'var(--teal-bg)'};border-radius:8px;border-left:3px solid ${m.direction==='inbound'?'var(--border)':'var(--teal)'}">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+          <span style="font-size:10px;font-weight:600;color:${m.direction==='inbound'?'var(--text2)':'var(--teal)'}">${m.direction==='inbound'?'客户':'发出'}</span>
+          <span style="font-size:10px;color:var(--text3)">${timeShort(m.sent_at)}</span>
+        </div>
+        <div style="font-size:12px;color:var(--text);line-height:1.4">${(m.content||'').substring(0,80)}${(m.content||'').length>80?'…':''}</div>
+      </div>`).join('');
+    document.querySelector('.detail-actions').insertAdjacentHTML('beforebegin',
+      `<div class="detail-field mt-md"><label>最近消息</label><div style="margin-top:6px">${msgs}</div></div>`);
+  }
+
+  // Load customer orders
+  try {
+    const orders = await get(`/customers/${id}/orders`);
+    if (orders.length) {
+      const ordersHtml = orders.map(o => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border-light);font-size:12px">
+          <div>
+            <span style="font-family:'JetBrains Mono',monospace;font-weight:600;font-size:11px">${ov(o.order_no,'—')}</span>
+            <span style="margin-left:8px">${ov(o.product,'—')}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            ${statusLabel(o.status)}
+            <span style="color:var(--text3);font-size:11px">${o.total_amount?ov(o.currency,'USD')+' '+Number(o.total_amount).toLocaleString():''}</span>
+          </div>
+        </div>`).join('');
+      const ordersSection = `<div style="margin-top:12px"><div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">关联订单 (${orders.length})</div>${ordersHtml}</div>`;
+      document.querySelector('.detail-actions').insertAdjacentHTML('beforebegin', ordersSection);
+    }
+  } catch(e) {}
+
+  // Add create order button
+  const createOrderBtn = `<button class="btn btn-outline btn-sm w-full" onclick="closeSidebar();navigate('orders');setTimeout(()=>openOrderForm(null,${id}),300)" style="margin-top:6px">+ 创建订单</button>`;
+  document.querySelector('.detail-actions').insertAdjacentHTML('beforeend', createOrderBtn);
+}
+
+async function toggleCustomerStatus(id, newStatus) {
+  await post(`/customers/${id}/status`, {status: newStatus});
+  closeSidebar();
+  loadPage('customers');
+}
+
+async function saveCustomerEdits(id) {
+  const phone = document.getElementById('edit-phone')?.value?.trim() || '';
+  const company = document.getElementById('edit-company')?.value?.trim() || '';
+  const notes = document.getElementById('edit-notes')?.value?.trim() || '';
+  const tags = document.getElementById('edit-tags')?.value?.trim() || '';
+  const r = await post(`/customers/${id}/status`, {phone, company, notes, tags});
+  if (r.ok) {
+    closeSidebar();
+    if (currentPage === 'customers') loadPage('customers');
+    else if (currentPage === 'conversations') loadPage('conversations');
+  } else {
+    alert('保存失败');
+  }
+}
+
+/* ── Conversations ─────────────────────────────────────────── */
+let convList = null;
+
+async function editCustomerName(id, currentName) {
+  const newName = prompt('输入新名称：', currentName || formatPhone(convList?.find(c => c.id === id)?.phone || ''));
+  if (!newName || newName.trim() === '') return;
+  const r = await post(`/customers/${id}/status`, {name: newName.trim()});
+  if (r.ok) {
+    if (currentPage === 'conversations') loadPage('conversations');
+  }
+}
+
+async function deleteCustomerConversations(id, name) {
+  const label = name || formatPhone(convList?.find(c => c.id === id)?.phone || '');
+  if (!confirm(`确定删除 ${label} 的全部对话记录吗？此操作不可恢复。`)) return;
+  const r = await del(`/customers/${id}/conversations`);
+  if (r.ok) {
+    if (selectedCustomerId === id) {
+      selectedCustomerId = null;
+      document.getElementById('chat-area').innerHTML = '<div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text3)">选择一个对话查看</div>';
+    }
+    loadPage('conversations');
+  }
+}
+
+async function loadConversations(el) {
+  convList = await get('/customers-with-conversations');
+  el.innerHTML = `
+    <div class="page-header"><h1>对话记录</h1><p>${convList.length} 个客户有对话</p></div>
+    <div class="panel" style="display:flex;height:calc(100vh - 180px);min-height:400px;overflow:hidden">
+      <div class="chat-list" id="conv-list">
+        ${convList.map(c => `
+          <div class="chat-item" data-cid="${c.id}">
+            <div class="chat-name" style="display:flex;align-items:center;justify-content:space-between" onclick="selectCustomer(${c.id})">
+              <span>${c.name||formatPhone(c.phone)}</span>
+              <div style="display:flex;gap:4px">
+                <button class="btn btn-xs" style="padding:1px 6px;font-size:10px;opacity:0.5" onclick="event.stopPropagation();editCustomerName(${c.id},'${(c.name||'').replace(/'/g,"\\'")}')" title="改名">✎</button>
+                <button class="btn btn-xs" style="padding:1px 6px;font-size:10px;opacity:0.3;color:var(--red)" onclick="event.stopPropagation();deleteCustomerConversations(${c.id},'${(c.name||'').replace(/'/g,"\\'")}')" title="删除全部对话">×</button>
+              </div>
+            </div>
+            <div class="chat-preview" onclick="selectCustomer(${c.id})">${c.msg_count} 条消息</div>
+            <div class="chat-meta" onclick="selectCustomer(${c.id})">${timeShort(c.last_msg)}</div>
+          </div>`).join('')}
+        ${convList.length === 0 ? '<div class="text-muted" style="padding:20px;text-align:center">暂无对话</div>' : ''}
+      </div>
+      <div class="chat-area" id="chat-area">
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text3)">
+          选择一个对话查看
+        </div>
+      </div>
+    </div>`;
+}
+
+async function selectCustomer(id) {
+  if (convPollTimer) { clearInterval(convPollTimer); convPollTimer = null; }
+  selectedCustomerId = id;
+  document.querySelectorAll('.chat-item').forEach(i => i.classList.toggle('active', +i.dataset.cid === id));
+  const d = await get('/customers/' + id);
+  const c = d.customer;
+  let msgsHtml = d.conversations.map(m => `
+    <div class="chat-msg ${m.direction}">
+      <div class="msg-body">${escapeHtml(m.content)}</div>
+      <div class="msg-time">${timeShort(m.sent_at)}${m.ai_generated ? ' <span class="msg-badge">AI</span>' : ''}</div>
+    </div>`).join('');
+
+  const fs = d.followup_schedule;
+  let fuInfo = '';
+  if (fs) {
+    fuInfo = `<span style="font-weight:400;color:var(--text2);font-size:11px;margin-left:8px">
+      跟进: ${timeShort(fs.next_followup_at)} · 每${fs.frequency_days}天
+      ${new Date(fs.next_followup_at) < new Date() ? ' <span class="badge badge-orange" style="font-size:10px">已逾期</span>' : ''}
+    </span>`;
+  }
+
+  document.getElementById('chat-area').innerHTML = `
+    <div class="chat-header">
+      <div>
+        ${c.name||formatPhone(c.phone)}
+        <button class="btn btn-xs" style="padding:1px 6px;font-size:10px;opacity:0.5;margin-left:6px" onclick="editCustomerName(${id},'${(c.name||'').replace(/'/g,"\\'")}')" title="改名">✎</button>
+        <span style="font-weight:400;color:var(--text2);font-size:12px;margin-left:6px">${c.company||''}</span>
+        ${fuInfo}
+      </div>
+      <button class="btn btn-outline btn-xs" onclick="viewCustomer(${id})">详情 →</button>
+    </div>
+    <div class="chat-messages">${msgsHtml||'<div class="text-muted" style="text-align:center">暂无消息</div>'}</div>
+    <div class="chat-input-area">
+      <textarea id="manual-msg" placeholder="输入要通过 WhatsApp 发送的消息..." rows="1"></textarea>
+      <button class="btn btn-primary btn-sm" onclick="sendManual(${id})">发送</button>
+    </div>`;
+
+  // Auto-refresh messages every 5 seconds
+  convPollTimer = setInterval(async () => {
+    if (selectedCustomerId !== id) return;
+    try {
+      const d = await get('/customers/' + id);
+      const msgsArea = document.querySelector('.chat-messages');
+      if (!msgsArea) { clearInterval(convPollTimer); convPollTimer = null; return; }
+      const scrollBottom = msgsArea.scrollTop + msgsArea.clientHeight >= msgsArea.scrollHeight - 20;
+      msgsArea.innerHTML = d.conversations.map(m => `
+        <div class="chat-msg ${m.direction}">
+          <div class="msg-body">${escapeHtml(m.content)}</div>
+          <div class="msg-time">${timeShort(m.sent_at)}${m.ai_generated ? ' <span class="msg-badge">AI</span>' : ''}</div>
+        </div>`).join('') || '<div class="text-muted" style="text-align:center">暂无消息</div>';
+      if (scrollBottom) msgsArea.scrollTop = msgsArea.scrollHeight;
+    } catch(e) {}
+  }, 5000);
+}
+
+async function sendManual(cid) {
+  const ta = document.getElementById('manual-msg');
+  const msg = ta.value.trim();
+  if (!msg) return;
+  let phone = convList ? convList.find(c => c.id === cid)?.phone : '';
+  if (!phone) {
+    const cust = await get('/customers/' + cid);
+    phone = cust?.customer?.phone || '';
+  }
+  if (!phone) { alert('未找到号码'); return; }
+  const r = await post('/send-manual', {phone, message: msg, customer_id: cid});
+  if (r.ok) { ta.value = ''; selectCustomer(cid); }
+  else { alert('发送失败: ' + (r.error||'未知错误')); }
+}
+
+function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+
+/* ── Follow-ups ────────────────────────────────────────────── */
+async function loadFollowups(el) {
+  const [dueRes, sentRes, failedRes] = await Promise.all([
+    get('/followups?filter_type=due'),
+    get('/followups?filter_type=today_sent'),
+    get('/followups?filter_type=failed'),
+  ]);
+
+  function fuRows(items, showActions) {
+    if (!items.length) return '<tr><td colspan=6 class="text-muted" style="text-align:center;padding:20px">无</td></tr>';
+    return items.map(f => `
+      <tr>
+        <td><a href="#" onclick="navigate('conversations');setTimeout(()=>selectCustomer(${f.customer_id}),200);return false" style="font-weight:600">${(f.name||'').substring(0,25)}</a></td>
+        <td class="mono">${formatPhone(f.phone)}</td>
+        <td class="text-muted">${timeShort(f.next_followup_at||f.sent_at)}</td>
+        <td>${f.frequency_days ? '每 ' + f.frequency_days + ' 天' : '—'}</td>
+        <td>${f.status ? badgeSent(f.status) : '<span class="badge badge-orange">待跟进</span>'}</td>
+        ${showActions ? `<td style="white-space:nowrap">
+          <button class="btn btn-primary btn-xs" onclick="event.stopPropagation();sendFollowupNow(${f.id})" title="立即发送跟进">▶</button>
+          <button class="btn btn-outline btn-xs" onclick="toggleFollowup(${f.id})" title="暂停跟进" style="margin-left:4px">⏸</button>
+        </td>` : '<td></td>'}
+      </tr>`).join('');
+  }
+
+  el.innerHTML = `
+    <div class="page-header"><h1>跟进管理</h1><p>定时跟进管理</p></div>
+    <div class="panel">
+      <div class="panel-header"><h3>⏳ 待跟进 / 已逾期 (${dueRes.items.length})</h3></div>
+      <div class="panel-body no-pad"><table><thead><tr><th>客户</th><th>电话</th><th>计划时间</th><th>频率</th><th>状态</th><th></th></tr></thead>
+      <tbody>${fuRows(dueRes.items, true)}</tbody></table></div>
+    </div>
+    <div style="display:flex;gap:20px">
+      <div style="flex:1" class="panel">
+        <div class="panel-header"><h3>✓ 今日已发送 (${sentRes.items.length})</h3></div>
+        <div class="panel-body no-pad"><table><thead><tr><th>客户</th><th>电话</th><th>时间</th><th>状态</th></tr></thead>
+        <tbody>${fuRows(sentRes.items, false)}</tbody></table></div>
+      </div>
+      <div style="flex:1" class="panel">
+        <div class="panel-header"><h3>✗ 发送失败 (${failedRes.items.length})</h3></div>
+        <div class="panel-body no-pad"><table><thead><tr><th>客户</th><th>电话</th><th>时间</th><th>错误信息</th></tr></thead>
+        <tbody>${failedRes.items.length ? failedRes.items.map(f => `
+          <tr><td style="font-weight:600">${(f.name||'').substring(0,25)}</td>
+          <td class="mono">${formatPhone(f.phone)}</td>
+          <td class="text-muted">${timeShort(f.sent_at)}</td>
+          <td class="text-sm" style="color:var(--red)">${(f.error_message||'').substring(0,50)}</td></tr>`).join('')
+        : '<tr><td colspan=4 class="text-muted" style="text-align:center;padding:20px">无</td></tr>'}</tbody></table></div>
+      </div>
+    </div>`;
+}
+
+async function toggleFollowup(sid) {
+  const r = await post(`/followups/${sid}/toggle`, {});
+  if (r.ok) loadPage('followups');
+}
+
+async function sendFollowupNow(sid) {
+  if (!confirm('确认立即向该客户发送跟进消息？')) return;
+  const r = await post(`/followups/${sid}/send-now`, {});
+  if (r.ok) { alert('发送成功！'); loadPage('followups'); }
+  else { alert('发送失败: ' + (r.error||'未知错误')); }
+}
+
+/* ── Orders ─────────────────────────────────────────────────── */
+
+let ordersPage = 1, ordersSearch = '', ordersStatusFilter = '';
+
+function statusLabel(s) {
+  const m = {pending:'待确认',confirmed:'已确认',processing:'生产中',shipped:'已发货',delivered:'已交付',cancelled:'已取消'};
+  const c = {pending:'var(--orange)',confirmed:'var(--blue)',processing:'var(--teal)',shipped:'var(--blue)',delivered:'var(--green)',cancelled:'var(--red)'};
+  return `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;color:#fff;background:${c[s]||'var(--text3)'}">${m[s]||s}</span>`;
+}
+
+async function loadOrders(el) {
+  const r = await get(`/orders?page=${ordersPage}&search=${encodeURIComponent(ordersSearch)}&status=${ordersStatusFilter}`);
+  const stats = await get('/orders?per_page=1');
+  el.innerHTML = `
+    <div class="page-header"><h1>订单管理</h1><button class="btn btn-primary" onclick="openOrderForm()">+ 新建订单</button></div>
+    <div class="stats" style="margin-bottom:14px">
+      <div class="stat-card" style="min-width:80px;padding:12px 16px"><div class="stat-label">全部</div><div class="stat-val" style="font-size:22px">${stats.total}</div></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:14px">
+      <input class="input" placeholder="搜索订单号/产品/客户..." value="${ordersSearch.replace(/"/g,'&quot;')}" onchange="ordersSearch=this.value;ordersPage=1;loadPage('orders')" style="flex:1;padding:7px 12px">
+      <select class="input" onchange="ordersStatusFilter=this.value;ordersPage=1;loadPage('orders')" style="width:130px;padding:7px 12px">
+        <option value="">全部状态</option>
+        <option value="pending" ${ordersStatusFilter==='pending'?'selected':''}>待确认</option>
+        <option value="confirmed" ${ordersStatusFilter==='confirmed'?'selected':''}>已确认</option>
+        <option value="processing" ${ordersStatusFilter==='processing'?'selected':''}>生产中</option>
+        <option value="shipped" ${ordersStatusFilter==='shipped'?'selected':''}>已发货</option>
+        <option value="delivered" ${ordersStatusFilter==='delivered'?'selected':''}>已交付</option>
+        <option value="cancelled" ${ordersStatusFilter==='cancelled'?'selected':''}>已取消</option>
+      </select>
+    </div>
+    <div class="panel panel-body no-pad" style="overflow-x:auto">
+      <table class="table-styled">
+        <thead><tr>
+          <th>订单号</th><th>客户</th><th>产品</th><th>数量</th><th>金额</th><th>状态</th><th>下单日期</th><th>操作</th>
+        </tr></thead>
+        <tbody>
+          ${r.items.length === 0 ? '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:30px">暂无订单</td></tr>' : ''}
+          ${r.items.map(o => `
+            <tr style="cursor:pointer" onclick="openOrderForm(${o.id})">
+              <td style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600">${ov(o.order_no,'—')}</td>
+              <td>${ov(o.customer_name)||formatPhone(o.customer_phone)||'—'}</td>
+              <td>${ov(o.product,'—')}</td>
+              <td>${ov(o.quantity,1)}</td>
+              <td>${o.total_amount ? ov(o.currency,'USD')+' '+Number(o.total_amount).toLocaleString() : '—'}</td>
+              <td>${statusLabel(o.status)}</td>
+              <td>${ov(o.order_date,'—')}</td>
+              <td><button class="btn btn-xs btn-danger" onclick="event.stopPropagation();deleteOrder(${o.id})">×</button></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    ${r.total > r.per_page ? `<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:14px">
+      <button class="btn btn-outline btn-sm" onclick="ordersPage--;loadPage('orders')" ${ordersPage<=1?'disabled':''}>上一页</button>
+      <span style="font-size:12px;color:var(--text2)">第 ${r.page} 页 / 共 ${Math.ceil(r.total/r.per_page)} 页</span>
+      <button class="btn btn-outline btn-sm" onclick="ordersPage++;loadPage('orders')" ${ordersPage>=Math.ceil(r.total/r.per_page)?'disabled':''}>下一页</button>
+    </div>` : ''}`;
+}
+
+async function openOrderForm(orderId, presetCustomerId) {
+  const customers = await get('/customers-with-conversations');
+  let order = null;
+  if (orderId) {
+    const r = await get(`/orders/${orderId}`);
+    order = r.order;
+  }
+  const sidebar = document.getElementById('detail-sidebar');
+  sidebar.innerHTML = `
+    <div class="sidebar-header">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <h4>${order ? '编辑订单' : '新建订单'}</h4>
+        <button onclick="closeSidebar()" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;line-height:1">×</button>
+      </div>
+      ${order ? `<div class="detail-field"><label>订单号</label><input class="input" id="ord-no" value="${order.order_no}" style="width:100%;padding:6px 10px;font-family:'JetBrains Mono',monospace"></div>` : ''}
+    </div>
+    <div class="sidebar-body">
+      <div class="detail-field"><label>客户 *</label>
+        <select class="input" id="ord-customer" style="width:100%;padding:6px 10px">
+          <option value="">选择客户</option>
+          ${customers.map(c => `<option value="${c.id}" ${(order&&order.customer_id===c.id)||(!order&&presetCustomerId===c.id)?'selected':''}>${c.name||formatPhone(c.phone)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="detail-field"><label>产品/型号</label><input class="input" id="ord-product" value="${(order&&order.product||'').replace(/"/g,'&quot;')}" style="width:100%;padding:6px 10px"></div>
+      <div class="detail-field" style="display:flex;gap:8px">
+        <div style="flex:1"><label>数量</label><input class="input" id="ord-qty" type="number" min="1" value="${order&&order.quantity||1}" style="width:100%;padding:6px 10px" oninput="calcTotal()"></div>
+        <div style="flex:1"><label>单价</label><input class="input" id="ord-price" type="number" step="0.01" value="${order&&order.unit_price||''}" style="width:100%;padding:6px 10px" oninput="calcTotal()"></div>
+      </div>
+      <div class="detail-field" style="display:flex;gap:8px">
+        <div style="flex:2"><label>总金额</label><input class="input" id="ord-total" type="number" step="0.01" value="${order&&order.total_amount||''}" style="width:100%;padding:6px 10px"></div>
+        <div style="flex:1"><label>币种</label>
+          <select class="input" id="ord-currency" style="width:100%;padding:6px 10px">
+            ${['USD','EUR','CNY','GBP','JPY','AUD','CAD','CHF','HKD','SGD'].map(c => `<option value="${c}" ${(order&&order.currency===c)||(!order&&c==='USD')?'selected':''}>${c}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="detail-field"><label>状态</label>
+        <select class="input" id="ord-status" style="width:100%;padding:6px 10px">
+          ${['pending','confirmed','processing','shipped','delivered','cancelled'].map(s => {
+            const labels = {pending:'待确认',confirmed:'已确认',processing:'生产中',shipped:'已发货',delivered:'已交付',cancelled:'已取消'};
+            return `<option value="${s}" ${order&&order.status===s?'selected':''}>${labels[s]}</option>`;
+          }).join('')}
+        </select>
+      </div>
+      <div class="detail-field"><label>下单日期</label><input class="input" id="ord-date" type="date" value="${order&&order.order_date||new Date().toISOString().slice(0,10)}" style="width:100%;padding:6px 10px" onchange="checkDeliveryDate()"></div>
+      <div class="detail-field"><label>预计交付</label><input class="input" id="ord-delivery" type="date" value="${order&&order.delivery_date||''}" style="width:100%;padding:6px 10px" onchange="checkDeliveryDate()"><span id="delivery-hint" style="display:none;font-size:11px;color:var(--red);margin-top:2px">⚠ 交付日期早于下单日期</span></div>
+      <div class="detail-field"><label>备注</label><textarea class="input" id="ord-notes" style="width:100%;padding:6px 10px;min-height:50px;resize:vertical" rows="2">${(order&&order.notes||'').replace(/</g,'&lt;')}</textarea></div>
+      <div class="detail-actions">
+        <button class="btn btn-primary btn-sm w-full" onclick="saveOrder(${order?order.id:'null'},${presetCustomerId||'null'})">${order?'保存修改':'创建订单'}</button>
+        ${order ? `<button class="btn btn-danger btn-sm w-full" onclick="deleteOrder(${order.id})">删除订单</button>` : ''}
+      </div>
+    </div>`;
+  sidebar.classList.add('open');
+}
+
+async function saveOrder(id, fallbackCid) {
+  const orderNoEl = document.getElementById('ord-no');
+  const data = {
+    customer_id: parseInt(document.getElementById('ord-customer').value)||fallbackCid||null,
+    product: document.getElementById('ord-product').value.trim(),
+    quantity: parseInt(document.getElementById('ord-qty').value)||1,
+    unit_price: parseFloat(document.getElementById('ord-price').value)||null,
+    total_amount: parseFloat(document.getElementById('ord-total').value)||null,
+    currency: document.getElementById('ord-currency').value,
+    status: document.getElementById('ord-status').value,
+    order_date: document.getElementById('ord-date').value,
+    delivery_date: document.getElementById('ord-delivery').value,
+    notes: document.getElementById('ord-notes').value.trim(),
+  };
+  if (orderNoEl) data.order_no = orderNoEl.value.trim();
+  if (!data.customer_id) { alert('请选择客户'); return; }
+  checkDeliveryDate();
+  if (data.order_date && data.delivery_date && data.order_date > data.delivery_date) {
+    alert('下单日期不能晚于交付日期'); return;
+  }
+  const url = id ? `/orders/${id}` : '/orders';
+  const method = id ? 'put' : 'post';
+  const r = await (method==='put' ? put(url, data) : post(url, data));
+  if (r.ok) { closeSidebar(); loadPage('orders'); }
+  else { alert('保存失败: ' + (r.error||'未知错误')); }
+}
+
+function checkDeliveryDate() {
+  const orderDate = document.getElementById('ord-date').value;
+  const deliveryDate = document.getElementById('ord-delivery').value;
+  const hint = document.getElementById('delivery-hint');
+  const input = document.getElementById('ord-delivery');
+  if (orderDate && deliveryDate && deliveryDate < orderDate) {
+    hint.style.display = 'block';
+    input.style.borderColor = 'var(--red)';
+  } else {
+    hint.style.display = 'none';
+    input.style.borderColor = '';
+  }
+}
+
+function calcTotal() {
+  const qty = parseFloat(document.getElementById('ord-qty').value) || 0;
+  const price = parseFloat(document.getElementById('ord-price').value) || 0;
+  const totalEl = document.getElementById('ord-total');
+  if (qty && price) totalEl.value = (qty * price).toFixed(2);
+}
+
+async function deleteOrder(id) {
+  if (!confirm('确定删除此订单？')) return;
+  const r = await del(`/orders/${id}`);
+  if (r.ok) { closeSidebar(); loadPage('orders'); }
+  else { alert('删除失败'); }
+}
+
+/* ── Bridge ────────────────────────────────────────────────── */
+
+let qrcodeLoaded = false;
+
+function loadQrCodeLib() {
+  return new Promise((resolve) => {
+    if (qrcodeLoaded) { resolve(); return; }
+    if (window.QRCode) { qrcodeLoaded = true; resolve(); return; }
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+    s.onload = () => { qrcodeLoaded = true; resolve(); };
+    s.onerror = () => { resolve(); };
+    document.head.appendChild(s);
+  });
+}
+
+async function startQrPolling() {
+  if (qrPollTimer) return;
+  await loadQrCodeLib();
+  qrPollTimer = setInterval(async () => {
+    try {
+      const r = await get('/qr');
+      const qrDiv = document.getElementById('qr-area');
+      if (!qrDiv) { clearInterval(qrPollTimer); qrPollTimer = null; return; }
+      if (r.status === 'pending' && r.qr_text) {
+        qrDiv.innerHTML = '<div class="qr-container"><div id="qr-code"></div><div class="qr-hint">请用手机 WhatsApp 扫描二维码登录</div></div>';
+        const el = document.getElementById('qr-code');
+        if (el && !el.hasChildNodes() && window.QRCode) {
+          new QRCode(el, { text: r.qr_text, width: 220, height: 220, colorDark: '#0F766E', colorLight: '#FFFFFF' });
+        }
+        const successDiv = document.getElementById('qr-success');
+        if (successDiv) successDiv.style.display = 'none';
+      } else if (r.status === 'none') {
+        const qrEl = document.getElementById('qr-code');
+        if (qrEl && qrEl.hasChildNodes()) {
+          const successDiv = document.getElementById('qr-success');
+          if (successDiv) successDiv.style.display = 'block';
+          qrDiv.innerHTML = '<div class="qr-container"><div class="qr-success" style="display:block">✓ 二维码已扫码，等待连接...</div></div>';
+          const btn = document.getElementById('qr-toggle-btn');
+          if (btn) { btn.textContent = '已扫码'; btn.disabled = true; }
+          clearInterval(qrPollTimer); qrPollTimer = null;
+          setTimeout(() => loadBridge(document.getElementById('page-bridge')), 2000);
+        }
+      }
+    } catch(e) {}
+  }, 3000);
+}
+
+function toggleQr() {
+  const qrArea = document.getElementById('qr-area');
+  const btn = document.getElementById('qr-toggle-btn');
+  if (!qrArea || !btn) return;
+  if (qrPollTimer) {
+    clearInterval(qrPollTimer); qrPollTimer = null;
+    qrArea.style.display = 'none';
+    btn.textContent = '显示二维码';
+  } else {
+    qrArea.style.display = '';
+    const successDiv = document.getElementById('qr-success');
+    if (successDiv) successDiv.style.display = 'none';
+    qrArea.innerHTML = '<div class="qr-container"><div class="qr-hint">正在加载二维码...</div></div>';
+    btn.textContent = '隐藏二维码';
+    startQrPolling();
+  }
+}
+
+let productDocsCache = [];
+
+async function loadProductDocs(el) {
+  const d = await get('/product-docs');
+  productDocsCache = d.items;
+  let rows = d.items.map(doc => `
+    <tr>
+      <td style="font-weight:600">${escapeHtml(doc.title.substring(0, 40))}</td>
+      <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(doc.content.substring(0, 80))}</td>
+      <td class="text-muted text-sm">${timeShort(doc.updated_at)}</td>
+      <td>
+        <button class="btn btn-outline btn-sm" onclick="editProductDoc(${doc.id})">编辑</button>
+        <button class="btn btn-outline btn-sm" style="color:var(--red)" onclick="deleteProductDoc(${doc.id})">删除</button>
+      </td>
+    </tr>`).join('');
+
+  el.innerHTML = `
+    <div class="page-header"><h1>产品资料</h1><p>管理 AI 回复中引用的产品参数和文档，支持上传 TXT / MD / PDF / Word / Excel / CSV 文件</p></div>
+    <div class="panel" style="margin-bottom:16px">
+      <div class="search-bar">
+        <span style="font-size:12px;color:var(--text3)">支持格式：TXT、Markdown、PDF、Word、Excel、CSV、图片（扫描版自动 OCR）</span>
+        <span class="flex-1"></span>
+        <button class="btn btn-outline btn-sm" id="upload-docs-btn" onclick="uploadProductDocs()">📤 上传文件</button>
+        <button class="btn btn-primary btn-sm" onclick="editProductDoc(0)">+ 新建文档</button>
+      </div>
+    </div>
+    <div class="panel"><div class="panel-body no-pad">
+      <table><thead><tr><th>标题</th><th>内容</th><th>更新时间</th><th style="width:120px">操作</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan=4 class="text-muted" style="text-align:center;padding:20px">暂无产品资料</td></tr>'}</tbody></table>
+    </div></div>`;
+}
+
+function uploadProductDocs() {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.multiple = true;
+  inp.accept = '.txt,.md,.markdown,.pdf,.docx,.xlsx,.xls,.csv,.png,.jpg,.jpeg,.gif,.bmp,.webp';
+  inp.onchange = async () => {
+    const files = inp.files;
+    if (!files.length) return;
+    const btn = document.getElementById('upload-docs-btn');
+    const origText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '⏳ 处理中...';
+    try {
+      const fd = new FormData();
+      for (const f of files) fd.append('files', f);
+      const r = await fetch(API + '/product-docs/upload', {method:'POST', body:fd});
+      const d = await r.json();
+      if (d.error) { alert('上传失败：' + d.error); return; }
+      let msg = `上传完成！成功 ${d.imported.length} 个`;
+      if (d.failed.length) {
+        msg += `，失败 ${d.failed.length} 个`;
+        msg += '\n\n失败详情：\n' + d.failed.map(f => `${f.filename}: ${f.reason}`).join('\n');
+      }
+      alert(msg);
+      loadProductDocs(document.getElementById('page-product-docs'));
+    } finally {
+      btn.disabled = false;
+      btn.textContent = origText;
+    }
+  };
+  inp.click();
+}
+
+async function editProductDoc(id) {
+  let title = '', content = '';
+  if (id) {
+    const cached = productDocsCache.find(d => d.id === id);
+    if (cached) {
+      title = cached.title; content = cached.content;
+    } else {
+      const r = await get('/product-docs');
+      const doc = r.items.find(d => d.id === id);
+      if (doc) { title = doc.title; content = doc.content; }
+    }
+  }
+  openSidebar(`
+    <div class="sidebar-header">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <h4>${id ? '编辑文档' : '新建文档'}</h4>
+        <button onclick="closeSidebar()" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;line-height:1">×</button>
+      </div>
+    </div>
+    <div class="sidebar-body">
+      <label class="f-label">标题</label>
+      <input class="input" id="doc-title" value="${escapeHtml(title)}" style="margin-bottom:12px">
+      <label class="f-label">内容（AI 回复客户时会引用此内容）</label>
+      <textarea class="input" id="doc-content" rows="14" style="margin-bottom:16px;font-family:monospace;font-size:13px">${escapeHtml(content)}</textarea>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" onclick="saveProductDoc(${id})">保存</button>
+        <button class="btn btn-outline" onclick="closeSidebar()">取消</button>
+      </div>
+    </div>`);
+}
+
+async function saveProductDoc(id) {
+  const title = document.getElementById('doc-title').value.trim();
+  const content = document.getElementById('doc-content').value.trim();
+  if (!title) { alert('请输入标题'); return; }
+  let r;
+  if (id) {
+    r = await put('/product-docs/' + id, {title, content});
+  } else {
+    r = await post('/product-docs', {title, content});
+  }
+  if (r.error) { alert('保存失败：' + r.error); return; }
+  closeSidebar();
+  loadProductDocs(document.getElementById('page-product-docs'));
+}
+
+async function deleteProductDoc(id) {
+  if (!confirm('确定删除此文档？删除后 AI 回复将不再引用此内容。')) return;
+  await del('/product-docs/' + id);
+  loadProductDocs(document.getElementById('page-product-docs'));
+}
+
+function escapeHtml(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function loadBridge(el) {
+  if (qrPollTimer) { clearInterval(qrPollTimer); qrPollTimer = null; }
+  const d = await get('/bridge');
+  updateNavDot(d.online && d.authenticated);
+  let cls = d.online ? (d.authenticated ? 'badge-green' : 'badge-orange') : 'badge-red';
+  let label = d.online ? (d.authenticated ? '已连接' : '未认证') : '离线';
+
+  let eventsHtml = d.recent_events.map(e => {
+    let cls = e.includes('WHATSAPP_READY') ? 'timeline-item'
+      : e.includes('DISCONNECTED') || e.includes('exit') ? 'timeline-item error'
+      : 'timeline-item';
+    return `<div class="${cls}"><div class="tl-time">${e.substring(0,19)}</div><div class="tl-text">${escapeHtml(e.substring(20,120))}</div></div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="page-header"><h1>桥接状态</h1><p>WhatsApp 连接监控</p></div>
+    <div class="panel">
+      <div class="panel-header"><h3>🔧 网络代理</h3><span class="text-muted" style="font-size:13px">国内用户需配置代理才能连接 WhatsApp</span></div>
+      <div class="panel-body">
+        <div style="display:flex;gap:8px;align-items:center">
+          <input class="input" id="proxy-input" placeholder="例: http://127.0.0.1:7890" style="flex:1">
+          <button class="btn btn-primary btn-sm" onclick="saveProxy()">保存代理</button>
+        </div>
+        <div class="text-muted" style="margin-top:8px;font-size:12px">保存后需重启应用或重新扫码登录</div>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat-card"><div class="stat-label">桥接进程</div><div class="stat-val" style="color:${d.online?'var(--green)':'var(--red)'}">${d.online?'运行中':'已停止'}</div></div>
+      <div class="stat-card"><div class="stat-label">WhatsApp 认证</div><div class="stat-val" style="color:${d.authenticated?'var(--green)':'var(--orange)'}">${d.authenticated?'已认证':'未认证'}</div></div>
+      <div class="stat-card"><div class="stat-label">手机号码</div><div class="stat-val" style="font-size:20px">${d.phone||'N/A'}</div><div class="stat-sub"><span class="badge ${cls}">${label}</span></div></div>
+    </div>
+    ${(!d.authenticated) ? `
+    <div class="panel">
+      <div class="panel-header"><h3>📱 扫码登录</h3><button class="btn btn-primary btn-sm" id="qr-toggle-btn" onclick="toggleQr()">显示二维码</button></div>
+      <div class="panel-body" id="qr-area" style="display:none">
+        <div class="qr-container"><div class="qr-hint">正在加载二维码...</div></div>
+      </div>
+      <div id="qr-success" class="qr-success" style="display:none">✓ 二维码已扫码，等待连接...</div>
+    </div>` : ''}
+    <div class="panel">
+      <div class="panel-header"><h3>最近桥接事件</h3></div>
+      <div class="panel-body">
+        <div class="timeline">${eventsHtml||'<div class="text-muted">暂无事件</div>'}</div>
+      </div>
+    </div>`;
+
+  // Load current proxy into the input
+  try {
+    const pr = await get('/proxy');
+    const proxyInput = document.getElementById('proxy-input');
+    if (proxyInput && pr.proxy) proxyInput.value = pr.proxy;
+  } catch (_) {}
+
+}
+
+function updateNavDot(online) {
+  const dot = document.getElementById('nav-dot');
+  dot.className = 'bridge-dot ' + (online ? 'online' : 'offline');
+}
+
+async function saveProxy() {
+  const inp = document.getElementById('proxy-input');
+  const proxy = inp.value.trim();
+  const btn = event.target;
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '保存中...';
+  try {
+    const r = await post('/proxy', {proxy});
+    if (r.ok) {
+      alert(r.note || '代理已保存');
+    }
+  } catch(e) {
+    alert('保存失败: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
+}
+
+/* ── Activity ──────────────────────────────────────────────── */
+/* ── Setup Wizard ──────────────────────────────────────────── */
+let setupConfigured = true;
+
+async function checkSetupStatus() {
+  try {
+    const r = await get('/setup-status');
+    setupConfigured = r.configured;
+    return r.configured;
+  } catch(e) {
+    setupConfigured = true; // don't block on error
+    return true;
+  }
+}
+
+async function loadSetup(el) {
+  el.innerHTML = `
+    <div style="max-width:480px;margin:60px auto;text-align:center">
+      <div style="margin-bottom:24px">
+        <div style="width:56px;height:56px;border-radius:14px;background:linear-gradient(135deg,var(--teal),var(--accent));margin:0 auto 16px;display:flex;align-items:center;justify-content:center">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        </div>
+        <h1 style="font-size:24px;font-weight:700;margin-bottom:6px">欢迎使用 Tide Power</h1>
+        <p style="font-size:14px;color:var(--text2)">首次使用请配置 API Key 以启用 AI 自动回复</p>
+      </div>
+      <div class="panel" style="text-align:left">
+        <div class="panel-body">
+          <div class="detail-field">
+            <label>LLM API Key</label>
+            <input class="input" id="setup-apikey" type="password" placeholder="请输入你的 API Key（如 DeepSeek Key）" style="width:100%;padding:10px 14px;font-size:14px">
+            <div style="font-size:11px;color:var(--text3);margin-top:6px;line-height:1.5">
+              需要 DeepSeek API Key？<a href="https://platform.deepseek.com/api_keys" target="_blank">点击获取 →</a>
+            </div>
+          </div>
+          <div class="detail-field" style="margin-top:16px">
+            <label>HTTPS 代理（选填，国内用户必填）</label>
+            <input class="input" id="setup-proxy" placeholder="例: http://127.0.0.1:7890" style="width:100%;padding:10px 14px;font-size:14px">
+            <div style="font-size:11px;color:var(--text3);margin-top:6px;line-height:1.5">
+              WhatsApp 在国内需通过代理连接。常用端口：Clash(7890)、V2Ray(10809)。
+            </div>
+          </div>
+          <div style="margin-top:20px">
+            <button class="btn btn-primary w-full" onclick="saveSetup()" style="width:100%;padding:12px;font-size:14px;justify-content:center">保存并开始使用</button>
+          </div>
+          <div id="setup-error" style="display:none;color:var(--red);font-size:12px;margin-top:10px;text-align:center"></div>
+        </div>
+      </div>
+      <div style="margin-top:16px;font-size:12px;color:var(--text3);line-height:1.6">
+        <p>API Key 将安全保存在本地，不会上传到任何服务器。</p>
+        <p>配置完成后，你需要在<a href="#" onclick="navigate('bridge');return false" style="color:var(--teal)">桥接状态</a>页面扫码登录 WhatsApp。</p>
+      </div>
+    </div>`;
+  // Pre-fill proxy from config
+  get('/proxy').then(r => {
+    const inp = document.getElementById('setup-proxy');
+    if (inp && r.proxy) inp.value = r.proxy;
+  }).catch(() => {});
+}
+
+async function saveSetup() {
+  const key = document.getElementById('setup-apikey').value.trim();
+  const proxyInput = document.getElementById('setup-proxy');
+  const proxy = proxyInput ? proxyInput.value.trim() : '';
+  const errEl = document.getElementById('setup-error');
+  if (!key) {
+    errEl.textContent = '请输入 API Key';
+    errEl.style.display = 'block';
+    return;
+  }
+  const btn = document.querySelector('#page-setup .btn-primary');
+  btn.disabled = true;
+  btn.textContent = '保存中…';
+  try {
+    const r = await post('/setup', {api_key: key});
+    if (!r.ok) {
+      errEl.textContent = r.error || '保存失败';
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = '保存并开始使用';
+      return;
+    }
+    // Also save proxy if provided
+    if (proxy) {
+      await post('/proxy', {proxy});
+    }
+    setupConfigured = true;
+    // Go to bridge page for QR scan
+    navigate('bridge');
+  } catch(e) {
+    errEl.textContent = '网络错误，请重试';
+    errEl.style.display = 'block';
+  }
+  btn.disabled = false;
+  btn.textContent = '保存并开始使用';
+}
+
+/* ── Activity ──────────────────────────────────────────────── */
+async function loadActivity(el) {
+  const d = await get('/activity?lines=200');
+  let linesHtml = d.lines.map(l => {
+    let cls = 'timeline-item';
+    if (l.includes('[ERROR]')) cls += ' error';
+    else if (l.includes('[CRITICAL]')) cls += ' error';
+    return `<div class="${cls}"><div class="tl-time" style="font-family:'JetBrains Mono',monospace;font-size:11px">${l.substring(0,19)}</div><div class="tl-text">${escapeHtml(l.substring(20))}</div></div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="page-header"><h1>运行日志</h1><p>最近机器人事件</p></div>
+    <div class="panel"><div class="panel-body">
+      <div class="timeline">${linesHtml||'<div class="text-muted">暂无活动</div>'}</div>
+    </div></div>`;
+}
+
+/* ── Init ─────────────────────────────────────────────────── */
+(async function init() {
+  const configured = await checkSetupStatus();
+  if (!configured) {
+    navigate('setup');
+    return;
+  }
+  checkBotState();
+  setInterval(checkBotState, 15000);
+  const hash = location.hash.replace('#','') || 'dashboard';
+  navigate(hash);
+})();
+</script>
+</body>
+</html>

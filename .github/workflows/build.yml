@@ -1,0 +1,79 @@
+name: Build Desktop App
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:  # Allow manual trigger from GitHub web
+
+jobs:
+  # ── Windows Build ──
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build Python backend (PyInstaller)
+        run: pyinstaller backend.spec --distpath dist --workpath build --clean
+
+      - name: Install Electron dependencies
+        working-directory: desktop
+        run: npm install
+
+      - name: Build Windows installer (NSIS)
+        working-directory: desktop
+        run: npx electron-builder --win
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-Installer
+          path: desktop/dist/WhatsApp-机器人 Setup *.exe
+
+  # ── Mac Build ──
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build Python backend (PyInstaller)
+        run: pyinstaller backend.spec --distpath dist --workpath build --clean
+
+      - name: Install Electron dependencies
+        working-directory: desktop
+        run: npm install
+
+      - name: Build Mac DMG
+        working-directory: desktop
+        run: npx electron-builder --mac
+
+      - name: Upload Mac DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mac-DMG
+          path: desktop/dist/WhatsApp-机器人-*.dmg
