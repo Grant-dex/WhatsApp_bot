@@ -26,7 +26,6 @@ a = Analysis(
     datas=[
         ('src/static', 'static'),
         ('config.yaml', '.'),
-        ('product_specs.txt', '.'),
     ]
     + (
         # Bundle rapidocr ONNX models (portable path resolution)
@@ -35,7 +34,11 @@ a = Analysis(
             (str(rpath / 'config.yaml'), 'rapidocr'),
             (str(rpath / 'default_models.yaml'), 'rapidocr'),
         ]
-    )(Path(__import__('rapidocr').__file__).parent),
+    )(Path(__import__('rapidocr').__file__).parent)
+    + (
+        # product_specs.txt is optional (user data, may not exist in CI)
+        [('product_specs.txt', '.')] if Path.cwd().joinpath('product_specs.txt').exists() else []
+    ),
     hiddenimports=[
         'config',
         'database',
