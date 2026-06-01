@@ -3,7 +3,9 @@ name: Build Desktop App
 on:
   push:
     branches: [main, master]
-  workflow_dispatch:  # Allow manual trigger from GitHub web
+    tags:
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   # ── Windows Build ──
@@ -36,11 +38,24 @@ jobs:
         working-directory: desktop
         run: npx electron-builder --win
 
-      - name: Upload Windows installer
+      - name: Rename installer for release
+        if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: desktop/dist
+        run: |
+          $file = Get-ChildItem -Filter "WhatsApp-机器人 Setup *.exe" | Select-Object -First 1
+          Rename-Item -Path $file.FullName -NewName "WhatsApp-Bot-Windows-Setup.exe"
+
+      - name: Upload Windows installer (artifact)
         uses: actions/upload-artifact@v4
         with:
           name: Windows-Installer
           path: desktop/dist/WhatsApp-机器人 Setup *.exe
+
+      - name: Upload to Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: desktop/dist/WhatsApp-Bot-Windows-Setup.exe
 
   # ── Mac Build ──
   build-mac:
@@ -72,8 +87,21 @@ jobs:
         working-directory: desktop
         run: npx electron-builder --mac
 
-      - name: Upload Mac DMG
+      - name: Rename DMG for release
+        if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: desktop/dist
+        run: |
+          file=$(ls WhatsApp-机器人-*.dmg 2>/dev/null | head -1)
+          mv "$file" "WhatsApp-Bot-macOS.dmg"
+
+      - name: Upload Mac DMG (artifact)
         uses: actions/upload-artifact@v4
         with:
           name: Mac-DMG
           path: desktop/dist/WhatsApp-机器人-*.dmg
+
+      - name: Upload to Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: desktop/dist/WhatsApp-Bot-macOS.dmg
