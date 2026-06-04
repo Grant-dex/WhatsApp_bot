@@ -75,9 +75,66 @@ def start_scheduler():
         trigger=IntervalTrigger(minutes=30),
         id="wal_checkpoint", replace_existing=True
     )
+    # Daily auto-batch push at 10:00 AM
+    scheduler.add_job(
+        run_auto_batch_push,
+        trigger=IntervalTrigger(hours=24, start_date=f"{datetime.now().strftime('%Y-%m-%d')} 10:00:00"),
+        id="auto_batch_push", replace_existing=True
+    )
     scheduler.start()
-    logger.info(f"Scheduler started: every {config.scheduler.followup_check_interval_minutes}min")
+    logger.info(f"Scheduler started: every {config.scheduler.followup_check_interval_minutes}min + daily auto-batch at 10:00")
     return scheduler
+
+
+async def auto_batch_push():
+    """Daily auto-batch-push: if no manual batch push was done today, send all due followups."""
+    from bot_state import was_batch_pushed_today
+    if was_batch_pushed_today():
+        logger.info("Auto-batch skipped: manual batch push already done today")
+        return
+    if not _check_lock.acquire(blocking=False):
+        return
+    try:
+        if is_paused():
+            logger.info("Auto-batch skipped: bot is paused")
+            return
+        if is_quiet_hours():
+            logger.info("Auto-batch skipped: quiet hours")
+            return
+        candidates = get_customers_due_for_followup()
+        if not candidates:
+            logger.info("Auto-batch: no due followups")
+            return
+        logger.info(f"Auto-batch: sending followups to {len(candidates)} customers")
+        sent = 0
+        for customer in candidates:
+            if is_quiet_hours():
+                break
+            message = generate_followup_message(customer)
+            result = await send_message(customer["phone"], message)
+            cid = customer["customer_id"]
+            sid = customer["schedule_id"]
+            if result.get("status") == "sent":
+                conv_id = save_message(cid, "outbound", message, ai_generated=True)
+                record_followup(cid, sid, conv_id, status="sent")
+                update_followup_schedule(sid)
+                sent += 1
+            else:
+                record_followup(cid, sid, None, status="failed", error_message=result.get("error", "unknown"))
+            await asyncio.sleep(120)  # 2 min interval for auto-batch
+        logger.info(f"Auto-batch complete: {sent}/{len(candidates)} sent")
+    except Exception as e:
+        logger.error(f"Auto-batch error: {e}", exc_info=True)
+    finally:
+        _check_lock.release()
+
+
+def run_auto_batch_push():
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(auto_batch_push())
+    finally:
+        loop.close()
 
 
 def _wal_checkpoint():

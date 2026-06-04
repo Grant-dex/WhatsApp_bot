@@ -625,6 +625,77 @@ async def send_manual(data: dict):
         return {"ok": False, "error": str(e)}
 
 
+# ── Batch Push helpers ────────────────────────────────────────────────────────
+
+@router.post("/followups/add-to-batch")
+async def add_customer_to_batch(data: dict):
+    """Add a customer to followup schedule for batch push."""
+    from database import ensure_followup_schedule
+    customer_id = data.get("customer_id")
+    if not customer_id:
+        return {"error": "customer_id required"}
+    conn = get_connection()
+    # Ensure customer exists
+    cust = conn.execute("SELECT id, name, phone, status FROM customers WHERE id=?", (customer_id,)).fetchone()
+    if not cust:
+        return {"error": "customer not found"}
+    if cust["status"] not in ("active", "inactive"):
+        return {"error": f"customer status is {cust['status']}"}
+    # If customer is inactive, set back to active
+    if cust["status"] == "inactive":
+        conn.execute("UPDATE customers SET status='active', updated_at=? WHERE id=?", (datetime.now().isoformat(), customer_id))
+        conn.commit()
+    # Create/activate followup schedule with next_followup_at=now so it appears immediately
+    conn.execute(
+        "INSERT INTO follow_up_schedule(customer_id, frequency_days, next_followup_at, active) "
+        "VALUES(?, 7, ?, 1) "
+        "ON CONFLICT DO NOTHING",
+        (customer_id, datetime.now().isoformat())
+    )
+    # Also ensure any inactive schedule is reactivated
+    conn.execute(
+        "UPDATE follow_up_schedule SET active=1 WHERE customer_id=? AND active=0",
+        (customer_id,)
+    )
+    conn.commit()
+    # Fetch the schedule
+    sched = conn.execute(
+        "SELECT fs.*, c.name, c.phone, c.company FROM follow_up_schedule fs "
+        "JOIN customers c ON fs.customer_id=c.id WHERE fs.customer_id=? AND fs.active=1",
+        (customer_id,)
+    ).fetchone()
+    return {"ok": True, "schedule": dict(sched) if sched else None}
+
+
+@router.post("/followups/{schedule_id}/remove-from-batch")
+async def remove_customer_from_batch(schedule_id: int):
+    """Remove a customer from the batch by deactivating their followup schedule."""
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM follow_up_schedule WHERE id=?", (schedule_id,)).fetchone()
+    if not row:
+        return {"error": "not found"}
+    conn.execute("UPDATE follow_up_schedule SET active=0 WHERE id=?", (schedule_id,))
+    conn.commit()
+    return {"ok": True}
+
+
+@router.post("/followups/mark-batch-pushed")
+async def mark_batch_pushed():
+    """Mark that manual batch push was completed today."""
+    from bot_state import mark_batch_pushed_today, _today_str
+    mark_batch_pushed_today()
+    return {"ok": True, "date": _today_str()}
+
+
+@router.get("/followups/auto-batch-status")
+async def auto_batch_status():
+    """Return whether today's batch push was already done manually."""
+    from bot_state import was_batch_pushed_today, _today_str
+    return {
+        "manual_pushed_today": was_batch_pushed_today(),
+        "date": _today_str(),
+    }
+
 # ── Product Docs ──────────────────────────────────────────────────────────────
 
 @router.get("/product-docs")

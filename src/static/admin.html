@@ -1150,6 +1150,8 @@ function toggleSelectAllBatch(checked) {
 }
 
 async function startBatchPush() {
+  // Mark that manual batch push was done today
+  try { await post('/followups/mark-batch-pushed', {}); } catch(e) {}
   if (batchPushState.running) return;
 
   // Get the latest due followups
@@ -1355,7 +1357,63 @@ function updateBatchInterval(val) {
   batchPushState.intervalMinutes = parseInt(val) || 3;
 }
 
-/* ── Load Followups ─────────────────────────────────────── */
+/* ── Batch Customer Management ─────────────────────── */
+async function removeCustomerFromBatch(scheduleId) {
+  if (!confirm('确定移除此客户？将从跟进计划中暂停该客户。')) return;
+  const r = await post(`/followups/${scheduleId}/remove-from-batch`, {});
+  if (r.ok) {
+    showToast('已移除');
+    loadPage('followups');
+  } else {
+    alert('移除失败: ' + (r.error || '未知错误'));
+  }
+}
+
+async function addCustomerToBatch() {
+  // Fetch all active customers not already in the batch
+  const dueRes = await get('/followups?filter_type=due');
+  const existingIds = new Set((dueRes.items || []).map(f => f.customer_id));
+  const allCust = await get('/customers?per_page=500');
+  const eligible = (allCust.items || []).filter(c => c.status === 'active' && !existingIds.has(c.id));
+  if (eligible.length === 0) {
+    alert('没有可添加的客户（所有活跃客户已在跟进计划中）');
+    return;
+  }
+  // Show a simple prompt with customer list
+  let list = '选择要添加到批量推送的客户：\n\n';
+  eligible.slice(0, 20).forEach((c, i) => {
+    list += `${i + 1}. ${c.name || formatPhone(c.phone)} (${formatPhone(c.phone)})\n`;
+  });
+  if (eligible.length > 20) list += `... 共 ${eligible.length} 个\n`;
+  const idx = prompt(list + '\n输入序号添加（多个用逗号分隔）：');
+  if (!idx) return;
+  const indices = idx.split(',').map(s => parseInt(s.trim()) - 1).filter(i => i >= 0 && i < eligible.length);
+  if (indices.length === 0) return;
+  let added = 0;
+  for (const i of indices) {
+    const r = await post('/followups/add-to-batch', {customer_id: eligible[i].id});
+    if (r.ok) added++;
+  }
+  showToast(`已添加 ${added} 个客户到批次`);
+  loadPage('followups');
+}
+
+function toggleAutoBatch(enabled) {
+  // Store preference in localStorage
+  localStorage.setItem('autoBatchEnabled', enabled ? '1' : '0');
+  updateAutoBatchInfo();
+}
+
+function updateAutoBatchInfo() {
+  const info = document.getElementById('auto-batch-info');
+  const toggle = document.getElementById('auto-batch-toggle');
+  if (info && toggle) {
+    const enabled = toggle.checked;
+    info.textContent = enabled ? '每天 10:00 自动推送（若今天未手动推送）' : '关闭后需手动点击"开始批量推送"';
+  }
+}
+
+${old5}
 async function loadFollowups(el) {
   // Reset any stale batch state when page loads fresh
   if (batchPushState.running) {
@@ -1398,7 +1456,8 @@ async function loadFollowups(el) {
         <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3);margin-left:8px">${formatPhone(f.phone)}</span>
         <span style="font-size:11px;color:var(--text3);margin-left:8px">${timeShort(f.next_followup_at)}</span>
         <span class="cust-status" style="font-size:10px;color:var(--text3)"></span>
-      </div>`).join('');
+            <button class="btn btn-xs" style="margin-left:auto;padding:2px 5px;font-size:10px;color:var(--red);opacity:0.6" onclick="event.stopPropagation();removeCustomerFromBatch(${f.id})" title="移除此客户" ${running ? 'disabled' : ''}>×</button>
+          </div>`).join('');
   }
 
   el.innerHTML = `
@@ -1410,6 +1469,7 @@ async function loadFollowups(el) {
         <h3>📨 一键批量推送</h3>
         <div style="display:flex;align-items:center;gap:8px">
           <span style="font-size:12px;color:var(--text2)">共 <strong style="color:var(--teal)">${dueCount}</strong> 个客户待跟进</span>
+          <button class="btn btn-outline btn-xs" onclick="addCustomerToBatch()" ${running ? 'disabled' : ''}>+ 添加客户</button>
         </div>
       </div>
       <div class="batch-push-controls">
@@ -1432,6 +1492,12 @@ async function loadFollowups(el) {
           ⏹ 停止推送
         </button>
       </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--border-light);margin-top:8px">
+            <label style="font-size:12px;font-weight:600;color:var(--text2);white-space:nowrap;display:flex;align-items:center;gap:6px">
+              <input type="checkbox" id="auto-batch-toggle" onchange="toggleAutoBatch(this.checked)" ${running ? 'disabled' : ''}> 每日自动推送
+            </label>
+            <span style="font-size:11px;color:var(--text3)" id="auto-batch-info"></span>
+          </div>
       <div class="batch-customer-list show" id="batch-customer-list">
         ${batchCustomerListHtml}
       </div>
@@ -2060,6 +2126,14 @@ navigate = function(page) {
   }
   checkBotState();
   setInterval(checkBotState, 15000);
+  // Init auto-batch toggle from localStorage
+  setTimeout(() => {
+    const autoToggle = document.getElementById('auto-batch-toggle');
+    if (autoToggle) {
+      autoToggle.checked = localStorage.getItem('autoBatchEnabled') === '1';
+      updateAutoBatchInfo();
+    }
+  }, 1000);
   const hash = location.hash.replace('#','') || 'dashboard';
   _originalNavigate(hash);
 })();
