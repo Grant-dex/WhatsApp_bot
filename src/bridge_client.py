@@ -17,8 +17,15 @@ async def send_message(phone: str, message: str, max_retries: int = 3) -> dict:
         try:
             async with httpx.AsyncClient(timeout=30.0, trust_env=False) as client:
                 resp = await client.post(url, json=payload)
-                resp.raise_for_status()
-                return resp.json()
+                data = resp.json()
+                if resp.is_error:
+                    error_detail = data.get("error", resp.reason_phrase)
+                    raise httpx.HTTPStatusError(
+                        f"Bridge returned {resp.status_code}: {error_detail}",
+                        request=resp.request,
+                        response=resp
+                    )
+                return data
         except Exception as e:
             last_error = e
             await asyncio.sleep(2 ** attempt)

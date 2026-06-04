@@ -154,6 +154,7 @@ def check_rate_limits(customer_id: int) -> tuple[bool, str]:
             _hourly_reset_at = time.time()
         if _hourly_reply_count >= cfg.business.max_auto_replies_per_hour:
             return False, "hourly limit"
+        _hourly_reply_count += 1
     return True, "ok"
 
 
@@ -256,9 +257,5 @@ Write a short follow-up message:"""},
         return f"Hi {customer.get('name','there')}, just checking in — anything I can help with regarding the gas generators?"
 
 
-def record_ai_usage():
-    global _hourly_reply_count
-    with _counter_lock:
-        _hourly_reply_count += 1
 
 

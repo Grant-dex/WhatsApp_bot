@@ -114,10 +114,10 @@ def close_db():
 
 def get_or_create_customer(phone: str, name: Optional[str] = None) -> dict:
     conn = get_connection()
-    row = conn.execute("SELECT * FROM customers WHERE phone=?", (phone,)).fetchone()
-    if row:
-        return dict(row)
     with _write_lock:
+        row = conn.execute("SELECT * FROM customers WHERE phone=?", (phone,)).fetchone()
+        if row:
+            return dict(row)
         cur = conn.execute("INSERT INTO customers(phone,name) VALUES(?,?)", (phone, name or phone))
         conn.commit()
     return dict(conn.execute("SELECT * FROM customers WHERE id=?", (cur.lastrowid,)).fetchone())

@@ -9,6 +9,7 @@ let mainWindow = null;
 let pythonProcess = null;
 let bridgeProcess = null;
 let backendRestarts = 0;
+let bridgeRestarts = 0;
 
 const isDev = !app.isPackaged;
 const APP_NAME = 'WhatsApp-机器人';
@@ -210,8 +211,6 @@ function startBridge(userDataPath, apiPort, bridgePort) {
   return proc;
 }
 
-let bridgeRestarts = 0;
-
 function readProxyFromConfig(userDataPath) {
   const configPath = path.join(userDataPath, 'config.yaml');
   try {
@@ -225,6 +224,14 @@ function readProxyFromConfig(userDataPath) {
 }
 
 async function createWindow() {
+  // Kill any zombie processes from previous sessions
+  try {
+    const { execSync } = require('child_process');
+    execSync('pkill -9 -f "whatsapp-bot-backend" 2>/dev/null; pkill -9 -f "bridge/index.js" 2>/dev/null; pkill -9 -f "port-forwarder.py" 2>/dev/null; true', { encoding: 'utf8', timeout: 3000 });
+    console.log('[main] Killed old backend/bridge/port-forwarder processes');
+  } catch (_) {}
+  await new Promise(r => setTimeout(r, 800));
+
   backendRestarts = 0;
   bridgeRestarts = 0;
   const userDataPath = ensureUserData();

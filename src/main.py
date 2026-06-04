@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import logging
+import logging.handlers
 import os
 import signal
 import subprocess
@@ -23,17 +24,29 @@ _bridge_process = None
 def setup_logging():
     (d := Path("logs")).mkdir(exist_ok=True)
     fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
-    fh = logging.FileHandler(d / "bot.log"); fh.setFormatter(fmt); fh.setLevel(logging.DEBUG)
+    fh = logging.handlers.RotatingFileHandler(
+        d / "bot.log", maxBytes=10*1024*1024, backupCount=5, encoding="utf-8"
+    ); fh.setFormatter(fmt); fh.setLevel(logging.DEBUG)
     ch = logging.StreamHandler(sys.stdout); ch.setFormatter(fmt); ch.setLevel(logging.INFO)
     root = logging.getLogger(); root.setLevel(logging.DEBUG); root.addHandler(fh); root.addHandler(ch)
 
 
 def kill_port(port):
     """Kill any process occupying the given port."""
-    subprocess.run(
-        f"lsof -ti :{port} | xargs kill -9 2>/dev/null",
-        shell=True, capture_output=True
-    )
+    try:
+        result = subprocess.run(
+            ["lsof", "-ti", f":{port}"],
+            capture_output=True, text=True, timeout=5
+        )
+        for pid_str in result.stdout.strip().split("\n"):
+            pid = pid_str.strip()
+            if pid:
+                try:
+                    os.kill(int(pid), signal.SIGKILL)
+                except (ProcessLookupError, ValueError):
+                    pass
+    except Exception:
+        pass
 
 
 def start_bridge():

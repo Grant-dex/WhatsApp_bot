@@ -12,7 +12,7 @@ from followup import generate_followup_message, get_random_delay
 from bot_state import is_paused
 
 logger = logging.getLogger(__name__)
-_check_running = False
+_check_lock = threading.Lock()
 
 
 def is_quiet_hours() -> bool:
@@ -23,10 +23,8 @@ def is_quiet_hours() -> bool:
 
 
 async def check_followups():
-    global _check_running
-    if _check_running:
+    if not _check_lock.acquire(blocking=False):
         return
-    _check_running = True
     try:
         if is_paused():
             logger.info("Follow-up check skipped: bot is paused")
@@ -56,7 +54,7 @@ async def check_followups():
     except Exception as e:
         logger.error(f"Follow-up error: {e}", exc_info=True)
     finally:
-        _check_running = False
+        _check_lock.release()
 
 
 def run_check_followups():
@@ -72,6 +70,21 @@ def start_scheduler():
     scheduler = BackgroundScheduler(timezone=config.app.timezone)
     scheduler.add_job(run_check_followups, trigger=IntervalTrigger(minutes=config.scheduler.followup_check_interval_minutes),
                       id="followup_check", replace_existing=True)
+    scheduler.add_job(
+        _wal_checkpoint,
+        trigger=IntervalTrigger(minutes=30),
+        id="wal_checkpoint", replace_existing=True
+    )
     scheduler.start()
     logger.info(f"Scheduler started: every {config.scheduler.followup_check_interval_minutes}min")
     return scheduler
+
+
+def _wal_checkpoint():
+    """Periodically checkpoint SQLite WAL to prevent unbounded growth."""
+    try:
+        from database import get_connection
+        conn = get_connection()
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+    except Exception as e:
+        logger.warning(f"WAL checkpoint failed: {e}")

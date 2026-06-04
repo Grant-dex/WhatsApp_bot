@@ -30,16 +30,18 @@ body{
   font-family:'Manrope','Noto Sans SC',-apple-system,BlinkMacSystemFont,sans-serif;
   font-size:14px;color:var(--text);background:var(--bg);
   display:flex;overflow:hidden;-webkit-font-smoothing:antialiased;
+  -webkit-user-select:text;user-select:text;
 }
 a{color:var(--teal);text-decoration:none}
 button{cursor:pointer;font-family:inherit;font-size:inherit}
-input,select,textarea{font-family:inherit;}
+input,select,textarea{font-family:inherit;-webkit-user-select:text;user-select:text;}
 
 /* ── Nav ─────────────────────────────────────────────────────── */
 nav{
   width:var(--nav-w);min-width:var(--nav-w);background:var(--nav-bg);
   display:flex;flex-direction:column;padding:0;z-index:10;
   box-shadow:1px 0 0 rgba(0,0,0,0.12);
+  -webkit-user-select:none;user-select:none;
 }
 nav .logo{
   padding:22px 20px 18px;font-weight:700;font-size:15px;color:#fff;
@@ -233,7 +235,7 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
   background:var(--card);box-shadow:0 1px 0 var(--border);
 }
 .chat-messages{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:10px;background:#F8F7F3}
-.chat-msg{max-width:72%;padding:10px 14px;border-radius:16px;font-size:13px;line-height:1.55;position:relative}
+.chat-msg{max-width:72%;padding:10px 14px;position:relative;border-radius:16px;font-size:13px;line-height:1.55;position:relative}
 .chat-msg.inbound{background:#fff;align-self:flex-start;border-bottom-left-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,0.06);border:1px solid var(--border-light)}
 .chat-msg.outbound{background:linear-gradient(135deg,#0F766E,#0D6B63);align-self:flex-end;border-bottom-right-radius:4px;color:#fff;box-shadow:0 2px 6px rgba(15,118,110,0.25)}
 .chat-msg.outbound .msg-time{color:rgba(255,255,255,0.6)}
@@ -342,6 +344,114 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 ::-webkit-scrollbar-thumb:hover{background:var(--text3)}
+
+/* ── Toast ──────────────────────────────────────────────────── */
+.toast{
+  position:fixed;bottom:30px;left:50%;transform:translateX(-50%);
+  background:#0F2720;color:#fff;padding:10px 22px;border-radius:20px;
+  font-size:13px;font-weight:600;z-index:9999;pointer-events:none;
+  opacity:0;transition:opacity .25s;box-shadow:0 4px 16px rgba(0,0,0,0.25);
+}
+.toast.show{opacity:1}
+.copy-btn{
+  display:inline-flex;align-items:center;gap:3px;padding:2px 6px;
+  border-radius:4px;border:none;cursor:pointer;font-size:11px;
+  background:var(--gray-bg);color:var(--text2);transition:all .15s;
+  margin-left:4px;opacity:0;
+}
+.copy-btn:hover{background:var(--teal-light);color:var(--teal)}
+tr:hover .copy-btn, .chat-msg:hover .copy-btn, .detail-field:hover .copy-btn{opacity:1}
+
+
+/* ── Ensure text is selectable everywhere ─────────────── */
+main, .page, .panel, .panel-body, table, td, th, .detail-field span,
+.chat-msg, .chat-messages, .chat-area, .sidebar-body, .timeline,
+.stat-card, .chat-item, .page-header p, .detail-field label {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+}
+
+
+/* ── Inline Edit Modal ───────────────────────────────────── */
+.edit-modal-overlay{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,0.3);z-index:10000;
+  align-items:center;justify-content:center;
+}
+.edit-modal-overlay.show{display:flex}
+.edit-modal{
+  background:var(--card);border-radius:var(--radius);padding:24px;
+  min-width:340px;max-width:440px;box-shadow:var(--shadow-md);
+}
+.edit-modal h3{font-size:16px;font-weight:700;margin-bottom:16px;color:var(--text)}
+.edit-modal input{
+  width:100%;padding:10px 14px;border:1.5px solid var(--border);
+  border-radius:var(--radius-sm);font-size:14px;outline:none;
+  margin-bottom:16px;color:var(--text);
+}
+.edit-modal input:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(15,118,110,0.1)}
+.edit-modal .edit-modal-actions{display:flex;gap:8px;justify-content:flex-end}
+
+/* ── Batch Push Panel ──────────────────────────────────── */
+.batch-push-panel{
+  background:linear-gradient(135deg,#F0FDFA 0%,#EFF6FF 100%);
+  border:1.5px solid rgba(15,118,110,0.2);
+  border-radius:var(--radius);padding:18px 22px;margin-bottom:18px;
+}
+.batch-push-panel.running{
+  background:linear-gradient(135deg,#FFF7ED 0%,#FFF1F2 100%);
+  border-color:rgba(234,88,12,0.3);
+}
+.batch-push-header{
+  display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;
+}
+.batch-push-header h3{font-size:15px;font-weight:700;color:var(--teal);display:flex;align-items:center;gap:8px}
+.batch-push-panel.running .batch-push-header h3{color:var(--orange)}
+.batch-push-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.batch-interval-group{display:flex;align-items:center;gap:6px}
+.batch-interval-group label{font-size:12px;font-weight:600;color:var(--text2);white-space:nowrap}
+.batch-interval-group select{padding:6px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:var(--card);color:var(--text);outline:none}
+.batch-progress-bar{
+  width:100%;height:6px;background:var(--border);border-radius:3px;margin-top:12px;
+  overflow:hidden;display:none;
+}
+.batch-progress-bar.show{display:block}
+.batch-progress-fill{
+  height:100%;background:linear-gradient(90deg,var(--teal),var(--accent));
+  border-radius:3px;transition:width .3s;
+  width:0%;
+}
+.batch-push-panel.running .batch-progress-fill{background:linear-gradient(90deg,#EA580C,#F97316)}
+.batch-push-status{
+  display:none;margin-top:12px;padding:10px 14px;
+  background:var(--card);border-radius:8px;border:1px solid var(--border-light);
+  font-size:13px;color:var(--text);line-height:1.6;
+}
+.batch-push-status.show{display:block}
+.batch-status-grid{display:flex;gap:20px;flex-wrap:wrap;margin-top:6px}
+.batch-stat{text-align:center}
+.batch-stat .stat-num{font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace}
+.batch-stat .stat-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px}
+.batch-next-info{font-size:12px;color:var(--text2);margin-top:8px;padding-top:8px;border-top:1px solid var(--border-light)}
+.batch-customer-list{
+  max-height:240px;overflow-y:auto;margin-top:8px;margin-bottom:12px;
+  border:1px solid var(--border-light);border-radius:8px;background:var(--card);
+  display:none;
+}
+.batch-customer-list.show{display:block}
+.batch-customer-item{
+  display:flex;align-items:center;gap:10px;padding:8px 14px;
+  border-bottom:1px solid var(--border-light);font-size:13px;
+  cursor:pointer;transition:background .1s;
+}
+.batch-customer-item:hover{background:var(--gray-hover)}
+.batch-customer-item:last-child{border-bottom:none}
+.batch-customer-item input[type=checkbox]{accent-color:var(--teal);width:15px;height:15px}
+.batch-customer-item.sent{background:var(--green-bg);opacity:.7}
+.batch-customer-item.sending{background:var(--teal-bg);font-weight:600}
+.batch-customer-item.failed{background:var(--red-bg)}
+.batch-customer-item .cust-name{flex:1;font-weight:500}
+.batch-customer-item .cust-status{font-size:11px;white-space:nowrap}
+
 </style>
 </head>
 <body>
@@ -406,6 +516,18 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
 <!-- ── Main Content ────────────────────────────────────────────── -->
 <div class="main-wrapper">
 <div class="banner-paused" id="banner-paused">⏸ 机器人已暂停 — AI 自动回复和定时跟进均已停止</div>
+
+<div class="edit-modal-overlay" id="edit-modal-overlay">
+  <div class="edit-modal">
+    <h3 id="edit-modal-title">修改</h3>
+    <input id="edit-modal-input" placeholder="输入新值..." onkeydown="if(event.key==='Enter')document.getElementById('edit-modal-ok').click()">
+    <div class="edit-modal-actions">
+      <button class="btn btn-outline btn-sm" onclick="closeEditModal()">取消</button>
+      <button class="btn btn-primary btn-sm" id="edit-modal-ok">确认</button>
+    </div>
+  </div>
+</div>
+
 <main id="main-content">
   <div class="page active" id="page-dashboard"></div>
   <div class="page" id="page-customers"></div>
@@ -423,12 +545,51 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
 <aside class="detail-sidebar" id="detail-sidebar"></aside>
 
 <script>
+
+let _editModalCallback = null;
+
+function showEditModal(title, currentValue, callback) {
+  document.getElementById('edit-modal-title').textContent = title;
+  document.getElementById('edit-modal-input').value = currentValue || '';
+  document.getElementById('edit-modal-overlay').classList.add('show');
+  document.getElementById('edit-modal-input').focus();
+  document.getElementById('edit-modal-input').select();
+  _editModalCallback = callback;
+  document.getElementById('edit-modal-ok').onclick = function() {
+    const val = document.getElementById('edit-modal-input').value.trim();
+    closeEditModal();
+    if (_editModalCallback) _editModalCallback(val);
+  };
+}
+
+function closeEditModal() {
+  document.getElementById('edit-modal-overlay').classList.remove('show');
+  _editModalCallback = null;
+}
+
+// Click overlay background to close
+document.addEventListener('click', function(e) {
+  if (e.target.id === 'edit-modal-overlay') closeEditModal();
+});
+
+
+function copyToClipboard(text, label) {
+  navigator.clipboard.writeText(text).then(() => showToast(label || '已复制')).catch(() => showToast('复制失败'));
+}
+function showToast(msg) {
+  let t = document.getElementById('toast');
+  if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t); }
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._timer); t._timer = setTimeout(() => t.classList.remove('show'), 1500);
+}
+
 /* ── SPA Router ─────────────────────────────────────────────── */
 const API = '/admin/api';
 let currentPage = 'dashboard';
 let selectedCustomerId = null;
 let qrPollTimer = null;
 let convPollTimer = null;
+let convPollGeneration = 0;
 
 document.querySelectorAll('nav a[data-page]').forEach(a => {
   a.addEventListener('click', e => {
@@ -503,6 +664,9 @@ function badgeSent(s) {
     : s === 'failed' ? '<span class="badge badge-red">失败</span>'
     : '<span class="badge badge-orange">待处理</span>';
 }
+
+function escapeHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escapeJs(s) { return (s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n').replace(/\r/g,'\\r'); }
 
 /* ── Page Loaders ────────────────────────────────────────────── */
 async function loadPage(page) {
@@ -586,7 +750,7 @@ async function loadDashboard(el) {
 
   let activeRows = d.recent_active.map(r =>
     `<tr>
-      <td><a href="#" onclick="navigate('conversations');setTimeout(()=>selectCustomer(${r.id}),200);return false" style="font-weight:600">${r.name||formatPhone(r.phone)}</a></td>
+      <td><a href="#" onclick="navigate('conversations');setTimeout(()=>selectCustomer(${r.id}),200);return false" style="font-weight:600">${escapeHtml(r.name||formatPhone(r.phone))}</a></td>
       <td>${r.company||''}</td>
       <td class="text-muted">${timeShort(r.last_contact)}</td>
       <td>${badgeStatus(r.status)}</td>
@@ -633,44 +797,92 @@ async function loadDashboard(el) {
 }
 
 /* ── Customers ─────────────────────────────────────────────── */
-let customerPage = 1, customerSearch = '', customerStatus = '';
-async function loadCustomers(el) {
-  const params = new URLSearchParams({page:customerPage,per_page:30,search:customerSearch,status:customerStatus});
-  const d = await get('/customers?' + params);
-  let rows = d.items.map(r => `
-    <tr>
-      <td><a href="#" onclick="viewCustomer(${r.id});return false" style="font-weight:600">${(r.name||'').substring(0,30)}</a></td>
-      <td class="mono">${formatPhone(r.phone)}</td>
-      <td>${(r.company||'').substring(0,25)}</td>
-      <td>${badgeStatus(r.status)}</td>
-      <td class="mono text-muted">${r.conv_count||0}</td>
-      <td class="text-muted text-sm">${timeShort(r.last_msg)||'—'}</td>
-      <td class="text-muted text-sm">${timeShort(r.next_fu)||'—'}</td>
-    </tr>`).join('');
+let customerPage = 1, customerSearch = '', customerStatus = '', customerDebounceTimer = null;
+	let customerLayoutInitialized = false;
 
-  let pages = Math.ceil(d.total / d.per_page);
-  el.innerHTML = `
-    <div class="page-header"><h1>客户管理</h1><p>共 ${d.total} 个客户 · 第 ${d.page}/${pages} 页</p></div>
-    <div class="panel" style="margin-bottom:16px">
-      <div class="search-bar">
-        <input class="input" placeholder="搜索姓名、电话、公司..." value="${customerSearch}" oninput="customerSearch=this.value;customerPage=1;loadCustomers(document.getElementById('page-customers'))" style="width:260px">
-        <select class="input" onchange="customerStatus=this.value;customerPage=1;loadCustomers(document.getElementById('page-customers'))">
-          <option value="">全部状态</option><option value="active">活跃</option><option value="inactive">非活跃</option><option value="blocked">已屏蔽</option><option value="opted_out">已退订</option>
-        </select>
-        <button class="btn btn-primary btn-sm" onclick="importCustomers()" style="margin-left:8px">📥 导入 Excel</button>
-        <span class="flex-1"></span>
-        <div style="display:flex;gap:6px;align-items:center">
-          <span style="font-size:12px;color:var(--text3)">第 ${d.page}/${pages} 页</span>
-          <button class="btn btn-outline btn-sm" ${customerPage<=1?'disabled':''} onclick="customerPage--;loadCustomers(document.getElementById('page-customers'))">← 上一页</button>
-          <button class="btn btn-outline btn-sm" ${customerPage>=pages?'disabled':''} onclick="customerPage++;loadCustomers(document.getElementById('page-customers'))">下一页 →</button>
-        </div>
-      </div>
-    </div>
-    <div class="panel"><div class="panel-body no-pad">
-      <table><thead><tr><th>姓名</th><th>电话</th><th>公司</th><th>状态</th><th>消息数</th><th>最近联系</th><th>下次跟进</th></tr></thead>
-      <tbody>${rows||'<tr><td colspan=7 class="text-muted" style="text-align:center;padding:20px">未找到客户</td></tr>'}</tbody></table>
-    </div></div>`;
-}
+	function debounceLoadCustomers(el) {
+	  clearTimeout(customerDebounceTimer);
+	  customerDebounceTimer = setTimeout(() => loadCustomers(el), 300);
+	}
+
+	function updateCustomerSearch(val) {
+	  customerSearch = val;
+	  customerPage = 1;
+	  debounceLoadCustomers(document.getElementById('page-customers'));
+	}
+
+	function updateCustomerStatus(val) {
+	  customerStatus = val;
+	  customerPage = 1;
+	  loadCustomers(document.getElementById('page-customers'));
+	}
+
+	function goCustomerPage(p) {
+	  customerPage = p;
+	  loadCustomers(document.getElementById('page-customers'));
+	}
+
+async function loadCustomers(el) {
+	  const params = new URLSearchParams({page:customerPage,per_page:30,search:customerSearch,status:customerStatus});
+	  const d = await get('/customers?' + params);
+	  let rows = d.items.map(r => `
+	    <tr>
+	      <td><a href="#" onclick="viewCustomer(${r.id});return false" style="font-weight:600">${escapeHtml((r.name||'').substring(0,30))}</a></td>
+	      <td class="mono">${formatPhone(r.phone)}<button class="copy-btn" onclick="event.stopPropagation();copyToClipboard('${formatPhone(r.phone)}','号码已复制')" title="复制号码">📋</button></td>
+	      <td>${escapeHtml((r.company||'').substring(0,25))}</td>
+	      <td>${badgeStatus(r.status)}</td>
+	      <td class="mono text-muted">${r.conv_count||0}</td>
+	      <td class="text-muted text-sm">${timeShort(r.last_msg)||'—'}</td>
+	      <td class="text-muted text-sm">${timeShort(r.next_fu)||'—'}</td>
+	    </tr>`).join('');
+
+	  let pages = Math.ceil(d.total / d.per_page) || 1;
+
+	  if (!customerLayoutInitialized || !document.getElementById('cust-header-info')) {
+	    customerLayoutInitialized = false;
+	    customerLayoutInitialized = true;
+	    el.innerHTML = `
+	      <div class="page-header"><h1>客户管理</h1><p id="cust-header-info"></p></div>
+	      <div class="panel" style="margin-bottom:16px">
+	        <div class="search-bar">
+	          <input class="input" id="cust-search-input" placeholder="搜索姓名、电话、公司..." style="width:260px">
+	          <select class="input" id="cust-status-select">
+	            <option value="">全部状态</option><option value="active">活跃</option><option value="inactive">非活跃</option><option value="blocked">已屏蔽</option><option value="opted_out">已退订</option>
+	          </select>
+	          <button class="btn btn-primary btn-sm" onclick="importCustomers()" style="margin-left:8px">📥 导入 Excel</button>
+	          <span class="flex-1"></span>
+	          <div style="display:flex;gap:6px;align-items:center">
+	            <span style="font-size:12px;color:var(--text3)" id="cust-page-info"></span>
+	            <button class="btn btn-outline btn-sm" id="cust-prev-btn" onclick="goCustomerPage(customerPage-1)">← 上一页</button>
+	            <button class="btn btn-outline btn-sm" id="cust-next-btn" onclick="goCustomerPage(customerPage+1)">下一页 →</button>
+	          </div>
+	        </div>
+	      </div>
+	      <div class="panel"><div class="panel-body no-pad">
+	        <table><thead><tr><th>姓名</th><th>电话</th><th>公司</th><th>状态</th><th>消息数</th><th>最近联系</th><th>下次跟进</th></tr></thead>
+	        <tbody id="cust-table-body"></tbody></table>
+	      </div></div>`;
+
+	    // Wire up events on persistent elements — they survive across searches
+	    document.getElementById('cust-search-input').addEventListener('input', function(e) {
+	      updateCustomerSearch(e.target.value);
+	    });
+	    document.getElementById('cust-status-select').addEventListener('change', function(e) {
+	      updateCustomerStatus(e.target.value);
+	    });
+	  }
+
+	  // Only update dynamic parts — search input is NEVER touched
+	  document.getElementById('cust-header-info').textContent = `共 ${d.total} 个客户 · 第 ${d.page}/${pages} 页`;
+	  document.getElementById('cust-table-body').innerHTML = rows || '<tr><td colspan=7 class="text-muted" style="text-align:center;padding:20px">未找到客户</td></tr>';
+	  document.getElementById('cust-page-info').textContent = `第 ${d.page}/${pages} 页`;
+	  document.getElementById('cust-prev-btn').disabled = customerPage <= 1;
+	  document.getElementById('cust-next-btn').disabled = customerPage >= pages;
+
+	  // Sync persistent inputs with state (for page nav, etc.)
+	  document.getElementById('cust-search-input').value = customerSearch;
+	  document.getElementById('cust-status-select').value = customerStatus;
+	}
 
 async function viewCustomer(id) {
   selectedCustomerId = id;
@@ -680,19 +892,19 @@ async function viewCustomer(id) {
   openSidebar(`
     <div class="sidebar-header">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <h4>${c.name||formatPhone(c.phone)}</h4>
+        <h4>${escapeHtml(c.name||formatPhone(c.phone))}</h4>
         <button onclick="closeSidebar()" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;line-height:1">×</button>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         ${badgeStatus(c.status)}
-        <span style="font-size:12px;color:var(--text3)">${c.company||''}</span>
+        <span style="font-size:12px;color:var(--text3)">${escapeHtml(c.company||'')}</span>
       </div>
     </div>
     <div class="sidebar-body">
-    <div class="detail-field"><label>电话</label><input class="input" id="edit-phone" value="${formatPhone(c.phone)}" style="width:100%;padding:6px 10px"></div>
-    <div class="detail-field"><label>公司</label><input class="input" id="edit-company" value="${(c.company||'').replace(/"/g,'&quot;')}" style="width:100%;padding:6px 10px"></div>
-    <div class="detail-field"><label>备注</label><textarea class="input" id="edit-notes" style="width:100%;padding:6px 10px;min-height:50px;resize:vertical" rows="2">${(c.notes||'').replace(/</g,'&lt;')}</textarea></div>
-    <div class="detail-field"><label>标签</label><input class="input" id="edit-tags" value="${(c.tags||'').replace(/"/g,'&quot;')}" style="width:100%;padding:6px 10px"></div>
+    <div class="detail-field"><label>电话 <button class="copy-btn" onclick="copyToClipboard(document.getElementById('edit-phone').value,'号码已复制')" style="opacity:1;font-size:10px">📋 复制</button></label><input class="input" id="edit-phone" value="${formatPhone(c.phone)}" style="width:100%;padding:6px 10px"></div>
+    <div class="detail-field"><label>公司</label><input class="input" id="edit-company" value="${escapeHtml(c.company||'')}" style="width:100%;padding:6px 10px"></div>
+    <div class="detail-field"><label>备注</label><textarea class="input" id="edit-notes" style="width:100%;padding:6px 10px;min-height:50px;resize:vertical" rows="2">${escapeHtml(c.notes||'')}</textarea></div>
+    <div class="detail-field"><label>标签</label><input class="input" id="edit-tags" value="${escapeHtml(c.tags||'')}" style="width:100%;padding:6px 10px"></div>
     <div class="detail-field"><label>创建时间</label><span>${timeShort(c.created_at)}</span></div>
     ${fs ? `<div style="background:var(--teal-bg);border:1px solid var(--teal-light);border-radius:8px;padding:12px;margin-bottom:14px">
       <div style="font-size:10px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">跟进计划</div>
@@ -704,7 +916,7 @@ async function viewCustomer(id) {
     <div class="detail-actions">
       <button class="btn btn-primary btn-sm w-full" onclick="saveCustomerEdits(${id})">保存修改</button>
       <button class="btn btn-outline btn-sm w-full" onclick="navigate('conversations');setTimeout(()=>selectCustomer(${id}),200)">查看对话</button>
-      <button class="btn btn-danger btn-sm w-full" onclick="toggleCustomerStatus(${id},'${c.status==='active'?'inactive':'active'}')">${c.status==='active'?'暂停跟进':'恢复跟进'}</button>
+      <button class="btn btn-danger btn-sm w-full" onclick="toggleCustomerStatus(${id},'${c.status==='active'?'inactive':'active'}',${fs?fs.id:0})">${c.status==='active'?'暂停跟进':'恢复跟进'}</button>
     </div>
     </div>`);
 
@@ -746,11 +958,16 @@ async function viewCustomer(id) {
   document.querySelector('.detail-actions').insertAdjacentHTML('beforeend', createOrderBtn);
 }
 
-async function toggleCustomerStatus(id, newStatus) {
-  await post(`/customers/${id}/status`, {status: newStatus});
-  closeSidebar();
-  loadPage('customers');
-}
+async function toggleCustomerStatus(id, newStatus, scheduleId) {
+	  await post(`/customers/${id}/status`, {status: newStatus});
+	  // Also toggle follow-up schedule so the scheduler respects this change
+	  if (scheduleId) {
+	    await post(`/followups/${scheduleId}/toggle`, {});
+	  }
+	  closeSidebar();
+	  if (currentPage === 'customers') loadPage('customers');
+	  else if (currentPage === 'conversations') loadPage('conversations');
+	}
 
 async function saveCustomerEdits(id) {
   const phone = document.getElementById('edit-phone')?.value?.trim() || '';
@@ -771,12 +988,14 @@ async function saveCustomerEdits(id) {
 let convList = null;
 
 async function editCustomerName(id, currentName) {
-  const newName = prompt('输入新名称：', currentName || formatPhone(convList?.find(c => c.id === id)?.phone || ''));
-  if (!newName || newName.trim() === '') return;
-  const r = await post(`/customers/${id}/status`, {name: newName.trim()});
-  if (r.ok) {
-    if (currentPage === 'conversations') loadPage('conversations');
-  }
+  const defaultVal = currentName || formatPhone(convList?.find(c => c.id === id)?.phone || '');
+  showEditModal('修改客户名称', defaultVal, async function(newName) {
+    if (!newName || newName === defaultVal) return;
+    const r = await post(`/customers/${id}/status`, {name: newName});
+    if (r.ok) {
+      if (currentPage === 'conversations') loadPage('conversations');
+    }
+  });
 }
 
 async function deleteCustomerConversations(id, name) {
@@ -801,10 +1020,10 @@ async function loadConversations(el) {
         ${convList.map(c => `
           <div class="chat-item" data-cid="${c.id}">
             <div class="chat-name" style="display:flex;align-items:center;justify-content:space-between" onclick="selectCustomer(${c.id})">
-              <span>${c.name||formatPhone(c.phone)}</span>
+              <span>${escapeHtml(c.name||formatPhone(c.phone))}</span>
               <div style="display:flex;gap:4px">
-                <button class="btn btn-xs" style="padding:1px 6px;font-size:10px;opacity:0.5" onclick="event.stopPropagation();editCustomerName(${c.id},'${(c.name||'').replace(/'/g,"\\'")}')" title="改名">✎</button>
-                <button class="btn btn-xs" style="padding:1px 6px;font-size:10px;opacity:0.3;color:var(--red)" onclick="event.stopPropagation();deleteCustomerConversations(${c.id},'${(c.name||'').replace(/'/g,"\\'")}')" title="删除全部对话">×</button>
+                <button class="btn btn-xs" style="padding:1px 6px;font-size:10px;opacity:0.5" onclick="event.stopPropagation();editCustomerName(${c.id},'${escapeJs(c.name||'')}')" title="改名">✎</button>
+                <button class="btn btn-xs" style="padding:1px 6px;font-size:10px;opacity:0.3;color:var(--red)" onclick="event.stopPropagation();deleteCustomerConversations(${c.id},'${escapeJs(c.name||'')}')" title="删除全部对话">×</button>
               </div>
             </div>
             <div class="chat-preview" onclick="selectCustomer(${c.id})">${c.msg_count} 条消息</div>
@@ -823,12 +1042,13 @@ async function loadConversations(el) {
 async function selectCustomer(id) {
   if (convPollTimer) { clearInterval(convPollTimer); convPollTimer = null; }
   selectedCustomerId = id;
+  const myGen = ++convPollGeneration;
   document.querySelectorAll('.chat-item').forEach(i => i.classList.toggle('active', +i.dataset.cid === id));
   const d = await get('/customers/' + id);
   const c = d.customer;
-  let msgsHtml = d.conversations.map(m => `
-    <div class="chat-msg ${m.direction}">
-      <div class="msg-body">${escapeHtml(m.content)}</div>
+  let msgsHtml = [...d.conversations].reverse().map(m => `
+    <div class="chat-msg ${m.direction}" style="position:relative">
+      <div class="msg-body">${escapeHtml(m.content)}</div><button class="copy-btn" onclick="event.stopPropagation();let t=this.parentElement.querySelector('.msg-body');copyToClipboard(t?t.textContent:'','消息已复制')" title="复制" style="position:absolute;top:4px;right:4px">📋</button>
       <div class="msg-time">${timeShort(m.sent_at)}${m.ai_generated ? ' <span class="msg-badge">AI</span>' : ''}</div>
     </div>`).join('');
 
@@ -844,9 +1064,9 @@ async function selectCustomer(id) {
   document.getElementById('chat-area').innerHTML = `
     <div class="chat-header">
       <div>
-        ${c.name||formatPhone(c.phone)}
-        <button class="btn btn-xs" style="padding:1px 6px;font-size:10px;opacity:0.5;margin-left:6px" onclick="editCustomerName(${id},'${(c.name||'').replace(/'/g,"\\'")}')" title="改名">✎</button>
-        <span style="font-weight:400;color:var(--text2);font-size:12px;margin-left:6px">${c.company||''}</span>
+        ${escapeHtml(c.name||formatPhone(c.phone))}
+        <button class="btn btn-xs" style="padding:1px 6px;font-size:10px;opacity:0.5;margin-left:6px" onclick="editCustomerName(${id},'${escapeJs(c.name||'')}')" title="改名">✎</button>
+        <span style="font-weight:400;color:var(--text2);font-size:12px;margin-left:6px">${escapeHtml(c.company||'')}</span>
         ${fuInfo}
       </div>
       <button class="btn btn-outline btn-xs" onclick="viewCustomer(${id})">详情 →</button>
@@ -859,15 +1079,16 @@ async function selectCustomer(id) {
 
   // Auto-refresh messages every 5 seconds
   convPollTimer = setInterval(async () => {
+    if (convPollGeneration !== myGen) { clearInterval(convPollTimer); return; }
     if (selectedCustomerId !== id) return;
     try {
       const d = await get('/customers/' + id);
       const msgsArea = document.querySelector('.chat-messages');
       if (!msgsArea) { clearInterval(convPollTimer); convPollTimer = null; return; }
       const scrollBottom = msgsArea.scrollTop + msgsArea.clientHeight >= msgsArea.scrollHeight - 20;
-      msgsArea.innerHTML = d.conversations.map(m => `
-        <div class="chat-msg ${m.direction}">
-          <div class="msg-body">${escapeHtml(m.content)}</div>
+      msgsArea.innerHTML = [...d.conversations].reverse().map(m => `
+        <div class="chat-msg ${m.direction}" style="position:relative">
+          <div class="msg-body">${escapeHtml(m.content)}</div><button class="copy-btn" onclick="event.stopPropagation();let t=this.parentElement.querySelector('.msg-body');copyToClipboard(t?t.textContent:'','消息已复制')" title="复制" style="position:absolute;top:4px;right:4px">📋</button>
           <div class="msg-time">${timeShort(m.sent_at)}${m.ai_generated ? ' <span class="msg-badge">AI</span>' : ''}</div>
         </div>`).join('') || '<div class="text-muted" style="text-align:center">暂无消息</div>';
       if (scrollBottom) msgsArea.scrollTop = msgsArea.scrollHeight;
@@ -890,11 +1111,260 @@ async function sendManual(cid) {
   else { alert('发送失败: ' + (r.error||'未知错误')); }
 }
 
-function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
 
 /* ── Follow-ups ────────────────────────────────────────────── */
+
+/* ── Batch Push State ───────────────────────────────────── */
+let batchPushState = {
+  running: false,
+  queue: [],
+  currentIndex: -1,
+  intervalMinutes: 3,
+  timer: null,
+  results: [],
+  startedAt: null,
+  selectedIds: null  // null = all selected, Set = specific selected
+};
+
+function resetBatchState() {
+  if (batchPushState.timer) { clearTimeout(batchPushState.timer); batchPushState.timer = null; }
+  batchPushState = {
+    running: false,
+    queue: [],
+    currentIndex: -1,
+    intervalMinutes: batchPushState.intervalMinutes,
+    timer: null,
+    results: [],
+    startedAt: null,
+    selectedIds: null
+  };
+}
+
+function getBatchSelectedIds() {
+  const checks = document.querySelectorAll('.batch-cust-check:checked');
+  if (checks.length === 0) return null;
+  return new Set(Array.from(checks).map(c => parseInt(c.dataset.sid)));
+}
+
+function toggleSelectAllBatch(checked) {
+  document.querySelectorAll('.batch-cust-check').forEach(c => { c.checked = checked; });
+}
+
+async function startBatchPush() {
+  if (batchPushState.running) return;
+
+  // Get the latest due followups
+  const dueRes = await get('/followups?filter_type=due');
+  if (!dueRes.items || !dueRes.items.length) {
+    alert('没有待跟进的客户');
+    return;
+  }
+
+  const selectedIds = getBatchSelectedIds();
+  const queue = selectedIds
+    ? dueRes.items.filter(f => selectedIds.has(f.id))
+    : dueRes.items;
+
+  if (queue.length === 0) {
+    alert('请至少选择一个客户');
+    return;
+  }
+
+  if (!confirm(`确定要开始批量推送吗？\n\n将依次向 ${queue.length} 个客户发送跟进消息，每条间隔 ${batchPushState.intervalMinutes} 分钟。\n\n期间请勿关闭此页面。`)) return;
+
+  batchPushState.running = true;
+  batchPushState.queue = queue;
+  batchPushState.currentIndex = -1;
+  batchPushState.results = [];
+  batchPushState.startedAt = Date.now();
+  batchPushState.selectedIds = selectedIds;
+
+  updateBatchPushUI();
+  processNextBatchItem();
+}
+
+function stopBatchPush() {
+  if (!batchPushState.running) return;
+  if (!confirm('确定要停止批量推送吗？已发送的消息不受影响，剩余未发的客户将保持待跟进状态。')) return;
+
+  if (batchPushState.timer) { clearTimeout(batchPushState.timer); batchPushState.timer = null; }
+  const remaining = batchPushState.queue.length - batchPushState.currentIndex - 1;
+  batchPushState.running = false;
+  updateBatchPushUI();
+  alert(`批量推送已停止。\n已完成: ${batchPushState.currentIndex + 1} 个\n剩余未发: ${Math.max(0, remaining)} 个`);
+  loadPage('followups');
+}
+
+async function processNextBatchItem() {
+  if (!batchPushState.running) return;
+
+  batchPushState.currentIndex++;
+
+  if (batchPushState.currentIndex >= batchPushState.queue.length) {
+    // All done!
+    batchPushState.running = false;
+    if (batchPushState.timer) { clearTimeout(batchPushState.timer); batchPushState.timer = null; }
+    updateBatchPushUI();
+    const success = batchPushState.results.filter(r => r.status === 'sent').length;
+    const failed = batchPushState.results.filter(r => r.status === 'failed').length;
+    const totalTime = Math.round((Date.now() - batchPushState.startedAt) / 60000);
+    alert(`批量推送完成！\n\n总耗时: ${totalTime} 分钟\n成功: ${success} 个\n失败: ${failed} 个`);
+    loadPage('followups');
+    return;
+  }
+
+  const item = batchPushState.queue[batchPushState.currentIndex];
+  updateBatchPushUI();
+
+  try {
+    const r = await post(`/followups/${item.id}/send-now`, {});
+    batchPushState.results.push({
+      id: item.id,
+      name: item.name || '',
+      phone: item.phone || '',
+      status: r.ok ? 'sent' : 'failed',
+      error: r.error || ''
+    });
+  } catch (e) {
+    batchPushState.results.push({
+      id: item.id,
+      name: item.name || '',
+      phone: item.phone || '',
+      status: 'failed',
+      error: e.message || '网络错误'
+    });
+  }
+
+  updateBatchPushUI();
+
+  // Schedule next send
+  if (batchPushState.running && batchPushState.currentIndex < batchPushState.queue.length - 1) {
+    const delayMs = batchPushState.intervalMinutes * 60 * 1000;
+    batchPushState.timer = setTimeout(() => processNextBatchItem(), delayMs);
+  } else if (batchPushState.currentIndex >= batchPushState.queue.length - 1) {
+    // Last item just completed, process next tick to finish
+    batchPushState.timer = setTimeout(() => processNextBatchItem(), 500);
+  }
+}
+
+function updateBatchPushUI() {
+  const panel = document.getElementById('batch-push-panel');
+  if (!panel) return;
+
+  const q = batchPushState.queue;
+  const idx = batchPushState.currentIndex;
+  const running = batchPushState.running;
+
+  panel.className = 'batch-push-panel' + (running ? ' running' : '');
+
+  // Update button states
+  const startBtn = document.getElementById('batch-start-btn');
+  const stopBtn = document.getElementById('batch-stop-btn');
+  if (startBtn) {
+    startBtn.disabled = running;
+    startBtn.textContent = running ? '推送中...' : '🚀 开始批量推送';
+  }
+  if (stopBtn) {
+    stopBtn.disabled = !running;
+    stopBtn.style.display = running ? '' : 'none';
+  }
+
+  // Update interval select
+  const intervalSel = document.getElementById('batch-interval');
+  if (intervalSel) intervalSel.disabled = running;
+
+  // Update customer checkboxes
+  if (running) {
+    document.querySelectorAll('.batch-cust-check').forEach(c => { c.disabled = true; });
+  }
+
+  // Mark sent/sending/failed items
+  const resultsMap = {};
+  batchPushState.results.forEach(r => { resultsMap[r.id] = r; });
+
+  document.querySelectorAll('.batch-customer-item').forEach(el => {
+    const sid = parseInt(el.dataset.sid);
+    el.classList.remove('sent', 'sending', 'failed');
+    if (resultsMap[sid]) {
+      el.classList.add(resultsMap[sid].status === 'sent' ? 'sent' : 'failed');
+      const statusEl = el.querySelector('.cust-status');
+      if (statusEl) {
+        statusEl.textContent = resultsMap[sid].status === 'sent' ? '✓ 已发送' : '✗ 失败';
+        statusEl.style.color = resultsMap[sid].status === 'sent' ? 'var(--green)' : 'var(--red)';
+      }
+    } else if (running && idx >= 0 && q[idx] && q[idx].id === sid) {
+      el.classList.add('sending');
+      const statusEl = el.querySelector('.cust-status');
+      if (statusEl) { statusEl.textContent = '⏳ 发送中...'; statusEl.style.color = 'var(--teal)'; }
+    }
+  });
+
+  // Update progress bar
+  const progressBar = document.getElementById('batch-progress-bar');
+  const progressFill = document.getElementById('batch-progress-fill');
+  if (progressBar && progressFill) {
+    progressBar.classList.toggle('show', running || batchPushState.results.length > 0);
+    const pct = q.length > 0 ? ((idx + 1) / q.length * 100) : 0;
+    progressFill.style.width = Math.min(100, Math.max(0, pct)) + '%';
+  }
+
+  // Update status display
+  const statusDiv = document.getElementById('batch-push-status');
+  if (statusDiv) {
+    statusDiv.classList.toggle('show', running || batchPushState.results.length > 0);
+    if (running || batchPushState.results.length > 0) {
+      const done = batchPushState.results.length;
+      const total = q.length;
+      const currentItem = running && idx >= 0 && idx < q.length ? q[idx] : null;
+      const nextSendIn = running && batchPushState.timer
+        ? Math.round(batchPushState.intervalMinutes * 60 - ((Date.now() - (batchPushState.startedAt + idx * batchPushState.intervalMinutes * 60000)) / 1000))
+        : 0;
+
+      statusDiv.innerHTML = `
+        <div class="batch-status-grid">
+          <div class="batch-stat">
+            <div class="stat-num" style="color:var(--teal)">${done}</div>
+            <div class="stat-label">已完成</div>
+          </div>
+          <div class="batch-stat">
+            <div class="stat-num" style="color:var(--text)">${total}</div>
+            <div class="stat-label">总计</div>
+          </div>
+          <div class="batch-stat">
+            <div class="stat-num" style="color:var(--orange)">${total - done}</div>
+            <div class="stat-label">剩余</div>
+          </div>
+          ${batchPushState.results.filter(r => r.status === 'failed').length > 0 ? `
+          <div class="batch-stat">
+            <div class="stat-num" style="color:var(--red)">${batchPushState.results.filter(r => r.status === 'failed').length}</div>
+            <div class="stat-label">失败</div>
+          </div>` : ''}
+        </div>
+        ${currentItem ? `
+        <div class="batch-next-info">
+          正在发送: <strong>${escapeHtml(currentItem.name || formatPhone(currentItem.phone))}</strong>
+          ${running && idx < total - 1 ? ` · 下一封将在 <strong>${batchPushState.intervalMinutes} 分钟</strong>后发送` : ''}
+          ${!running ? ' · 所有消息已处理完毕' : ''}
+        </div>` : (!running && done > 0 ? `
+        <div class="batch-next-info" style="color:var(--green);font-weight:600">✅ 全部消息已处理完毕</div>` : '')}
+      `;
+    }
+  }
+}
+
+function updateBatchInterval(val) {
+  batchPushState.intervalMinutes = parseInt(val) || 3;
+}
+
+/* ── Load Followups ─────────────────────────────────────── */
 async function loadFollowups(el) {
+  // Reset any stale batch state when page loads fresh
+  if (batchPushState.running) {
+    // Don't reset if running - page might have been refreshed via loadPage
+    // But if we're re-loading the page from scratch, reset
+  }
+
   const [dueRes, sentRes, failedRes] = await Promise.all([
     get('/followups?filter_type=due'),
     get('/followups?filter_type=today_sent'),
@@ -905,7 +1375,7 @@ async function loadFollowups(el) {
     if (!items.length) return '<tr><td colspan=6 class="text-muted" style="text-align:center;padding:20px">无</td></tr>';
     return items.map(f => `
       <tr>
-        <td><a href="#" onclick="navigate('conversations');setTimeout(()=>selectCustomer(${f.customer_id}),200);return false" style="font-weight:600">${(f.name||'').substring(0,25)}</a></td>
+        <td><a href="#" onclick="navigate('conversations');setTimeout(()=>selectCustomer(${f.customer_id}),200);return false" style="font-weight:600">${escapeHtml((f.name||'').substring(0,25))}</a></td>
         <td class="mono">${formatPhone(f.phone)}</td>
         <td class="text-muted">${timeShort(f.next_followup_at||f.sent_at)}</td>
         <td>${f.frequency_days ? '每 ' + f.frequency_days + ' 天' : '—'}</td>
@@ -917,10 +1387,70 @@ async function loadFollowups(el) {
       </tr>`).join('');
   }
 
+  const dueCount = dueRes.items.length;
+  const running = batchPushState.running;
+
+  // Build batch push customer list
+  let batchCustomerListHtml = '';
+  if (dueCount > 0) {
+    batchCustomerListHtml = dueRes.items.map(f => `
+      <div class="batch-customer-item" data-sid="${f.id}">
+        <input type="checkbox" class="batch-cust-check" data-sid="${f.id}" ${running ? 'disabled' : ''} checked>
+        <span class="cust-name">${escapeHtml((f.name||'').substring(0,25))}</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3);margin-left:8px">${formatPhone(f.phone)}</span>
+        <span style="font-size:11px;color:var(--text3);margin-left:8px">${timeShort(f.next_followup_at)}</span>
+        <span class="cust-status" style="font-size:10px;color:var(--text3)"></span>
+      </div>`).join('');
+  }
+
   el.innerHTML = `
-    <div class="page-header"><h1>跟进管理</h1><p>定时跟进管理</p></div>
+    <div class="page-header"><h1>跟进管理</h1><p>定时跟进管理 · 批量推送</p></div>
+
+    ${dueCount > 0 ? `
+    <div class="batch-push-panel" id="batch-push-panel">
+      <div class="batch-push-header">
+        <h3>📨 一键批量推送</h3>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:12px;color:var(--text2)">共 <strong style="color:var(--teal)">${dueCount}</strong> 个客户待跟进</span>
+        </div>
+      </div>
+      <div class="batch-push-controls">
+        <div class="batch-interval-group">
+          <label>发送间隔:</label>
+          <select class="input" id="batch-interval" onchange="updateBatchInterval(this.value)" ${running ? 'disabled' : ''}>
+            <option value="1" ${batchPushState.intervalMinutes===1?'selected':''}>1 分钟</option>
+            <option value="2" ${batchPushState.intervalMinutes===2?'selected':''}>2 分钟</option>
+            <option value="3" ${batchPushState.intervalMinutes===3?'selected':''}>3 分钟</option>
+            <option value="5" ${batchPushState.intervalMinutes===5?'selected':''}>5 分钟</option>
+            <option value="10" ${batchPushState.intervalMinutes===10?'selected':''}>10 分钟</option>
+          </select>
+        </div>
+        <button class="btn btn-outline btn-xs" onclick="toggleSelectAllBatch(true)" id="batch-select-all">全选</button>
+        <button class="btn btn-outline btn-xs" onclick="toggleSelectAllBatch(false)" id="batch-deselect-all">取消全选</button>
+        <button class="btn btn-primary" id="batch-start-btn" onclick="startBatchPush()" ${running ? 'disabled' : ''}>
+          ${running ? '推送中...' : '🚀 开始批量推送'}
+        </button>
+        <button class="btn btn-danger" id="batch-stop-btn" onclick="stopBatchPush()" style="display:${running?'':'none'}">
+          ⏹ 停止推送
+        </button>
+      </div>
+      <div class="batch-customer-list show" id="batch-customer-list">
+        ${batchCustomerListHtml}
+      </div>
+      <div class="batch-progress-bar" id="batch-progress-bar">
+        <div class="batch-progress-fill" id="batch-progress-fill" style="width:0%"></div>
+      </div>
+      <div class="batch-push-status" id="batch-push-status"></div>
+    </div>
+    ` : `
+    <div class="panel" style="margin-bottom:18px">
+      <div class="panel-body" style="text-align:center;padding:24px;color:var(--text3)">
+        📭 暂无待跟进客户，所有跟进任务已处理完毕
+      </div>
+    </div>`}
+
     <div class="panel">
-      <div class="panel-header"><h3>⏳ 待跟进 / 已逾期 (${dueRes.items.length})</h3></div>
+      <div class="panel-header"><h3>⏳ 待跟进 / 已逾期 (${dueCount})</h3></div>
       <div class="panel-body no-pad"><table><thead><tr><th>客户</th><th>电话</th><th>计划时间</th><th>频率</th><th>状态</th><th></th></tr></thead>
       <tbody>${fuRows(dueRes.items, true)}</tbody></table></div>
     </div>
@@ -934,13 +1464,18 @@ async function loadFollowups(el) {
         <div class="panel-header"><h3>✗ 发送失败 (${failedRes.items.length})</h3></div>
         <div class="panel-body no-pad"><table><thead><tr><th>客户</th><th>电话</th><th>时间</th><th>错误信息</th></tr></thead>
         <tbody>${failedRes.items.length ? failedRes.items.map(f => `
-          <tr><td style="font-weight:600">${(f.name||'').substring(0,25)}</td>
+          <tr><td style="font-weight:600">${escapeHtml((f.name||'').substring(0,25))}</td>
           <td class="mono">${formatPhone(f.phone)}</td>
           <td class="text-muted">${timeShort(f.sent_at)}</td>
           <td class="text-sm" style="color:var(--red)">${(f.error_message||'').substring(0,50)}</td></tr>`).join('')
         : '<tr><td colspan=4 class="text-muted" style="text-align:center;padding:20px">无</td></tr>'}</tbody></table></div>
       </div>
     </div>`;
+
+  // Restore batch push UI state if running
+  if (running) {
+    updateBatchPushUI();
+  }
 }
 
 async function toggleFollowup(sid) {
@@ -995,7 +1530,7 @@ async function loadOrders(el) {
           ${r.items.map(o => `
             <tr style="cursor:pointer" onclick="openOrderForm(${o.id})">
               <td style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600">${ov(o.order_no,'—')}</td>
-              <td>${ov(o.customer_name)||formatPhone(o.customer_phone)||'—'}</td>
+              <td>${escapeHtml(ov(o.customer_name)||formatPhone(o.customer_phone)||'—')}</td>
               <td>${ov(o.product,'—')}</td>
               <td>${ov(o.quantity,1)}</td>
               <td>${o.total_amount ? ov(o.currency,'USD')+' '+Number(o.total_amount).toLocaleString() : '—'}</td>
@@ -1033,10 +1568,10 @@ async function openOrderForm(orderId, presetCustomerId) {
       <div class="detail-field"><label>客户 *</label>
         <select class="input" id="ord-customer" style="width:100%;padding:6px 10px">
           <option value="">选择客户</option>
-          ${customers.map(c => `<option value="${c.id}" ${(order&&order.customer_id===c.id)||(!order&&presetCustomerId===c.id)?'selected':''}>${c.name||formatPhone(c.phone)}</option>`).join('')}
+          ${customers.map(c => `<option value="${c.id}" ${(order&&order.customer_id===c.id)||(!order&&presetCustomerId===c.id)?'selected':''}>${escapeHtml(c.name||formatPhone(c.phone))}</option>`).join('')}
         </select>
       </div>
-      <div class="detail-field"><label>产品/型号</label><input class="input" id="ord-product" value="${(order&&order.product||'').replace(/"/g,'&quot;')}" style="width:100%;padding:6px 10px"></div>
+      <div class="detail-field"><label>产品/型号</label><input class="input" id="ord-product" value="${escapeHtml(order&&order.product||'')}" style="width:100%;padding:6px 10px"></div>
       <div class="detail-field" style="display:flex;gap:8px">
         <div style="flex:1"><label>数量</label><input class="input" id="ord-qty" type="number" min="1" value="${order&&order.quantity||1}" style="width:100%;padding:6px 10px" oninput="calcTotal()"></div>
         <div style="flex:1"><label>单价</label><input class="input" id="ord-price" type="number" step="0.01" value="${order&&order.unit_price||''}" style="width:100%;padding:6px 10px" oninput="calcTotal()"></div>
@@ -1059,7 +1594,7 @@ async function openOrderForm(orderId, presetCustomerId) {
       </div>
       <div class="detail-field"><label>下单日期</label><input class="input" id="ord-date" type="date" value="${order&&order.order_date||new Date().toISOString().slice(0,10)}" style="width:100%;padding:6px 10px" onchange="checkDeliveryDate()"></div>
       <div class="detail-field"><label>预计交付</label><input class="input" id="ord-delivery" type="date" value="${order&&order.delivery_date||''}" style="width:100%;padding:6px 10px" onchange="checkDeliveryDate()"><span id="delivery-hint" style="display:none;font-size:11px;color:var(--red);margin-top:2px">⚠ 交付日期早于下单日期</span></div>
-      <div class="detail-field"><label>备注</label><textarea class="input" id="ord-notes" style="width:100%;padding:6px 10px;min-height:50px;resize:vertical" rows="2">${(order&&order.notes||'').replace(/</g,'&lt;')}</textarea></div>
+      <div class="detail-field"><label>备注</label><textarea class="input" id="ord-notes" style="width:100%;padding:6px 10px;min-height:50px;resize:vertical" rows="2">${escapeHtml(order&&order.notes||'')}</textarea></div>
       <div class="detail-actions">
         <button class="btn btn-primary btn-sm w-full" onclick="saveOrder(${order?order.id:'null'},${presetCustomerId||'null'})">${order?'保存修改':'创建订单'}</button>
         ${order ? `<button class="btn btn-danger btn-sm w-full" onclick="deleteOrder(${order.id})">删除订单</button>` : ''}
@@ -1305,9 +1840,6 @@ async function deleteProductDoc(id) {
   loadProductDocs(document.getElementById('page-product-docs'));
 }
 
-function escapeHtml(s) {
-  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
 
 async function loadBridge(el) {
   if (qrPollTimer) { clearInterval(qrPollTimer); qrPollTimer = null; }
@@ -1502,6 +2034,25 @@ async function loadActivity(el) {
     </div></div>`;
 }
 
+/* ── Batch Push Unload Guard ────────────────────────────── */
+window.addEventListener('beforeunload', function(e) {
+  if (batchPushState && batchPushState.running) {
+    e.preventDefault();
+    e.returnValue = '批量推送正在进行中，离开页面将中断推送。确定要离开吗？';
+    return e.returnValue;
+  }
+});
+
+// Override navigate to warn during batch push
+const _originalNavigate = navigate;
+navigate = function(page) {
+  if (batchPushState && batchPushState.running) {
+    if (!confirm('批量推送正在进行中，切换页面将丢失推送进度。\n\n确定要离开吗？')) return;
+    resetBatchState();
+  }
+  _originalNavigate(page);
+};
+
 /* ── Init ─────────────────────────────────────────────────── */
 (async function init() {
   const configured = await checkSetupStatus();
@@ -1512,7 +2063,7 @@ async function loadActivity(el) {
   checkBotState();
   setInterval(checkBotState, 15000);
   const hash = location.hash.replace('#','') || 'dashboard';
-  navigate(hash);
+  _originalNavigate(hash);
 })();
 </script>
 </body>

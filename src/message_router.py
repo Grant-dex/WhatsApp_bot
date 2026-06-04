@@ -1,7 +1,7 @@
 import logging
 from typing import Optional
 
-from ai_reply import check_rate_limits, generate_reply, record_ai_usage, should_auto_reply, summarize_and_remember
+from ai_reply import check_rate_limits, generate_reply, should_auto_reply, summarize_and_remember
 from database import ensure_followup_schedule, get_or_create_customer, save_message
 from bot_state import is_paused
 
@@ -30,7 +30,6 @@ async def handle_incoming_message(phone: str, body: str, msg_id: Optional[str] =
 
     reply = generate_reply(customer, body)
     save_message(customer["id"], "outbound", reply, ai_generated=True)
-    record_ai_usage()
     summarize_and_remember(customer["id"], body, reply)
     logger.info(f"Reply to {phone}: {reply[:60]}")
     return {"action": "reply", "message": reply, "delay_seconds": 3}
