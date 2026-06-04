@@ -69,7 +69,7 @@ async function forwardToPython(phone, body, msgId, timestamp) {
 
 async function start() {
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
-    const opts = { auth: state, printQRInTerminal: false, connectTimeoutMs: 60_000 };
+    const opts = { auth: state, printQRInTerminal: false, connectTimeoutMs: 60_000, browser: ['WhatsApp Bot', 'Chrome', '2.0.0'] };
     const agent = getProxyAgent(); if (agent) opts.agent = agent;
     sock = makeWASocket(opts);
 

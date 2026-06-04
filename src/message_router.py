@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 async def handle_incoming_message(phone: str, body: str, msg_id: Optional[str] = None) -> dict:
     customer = get_or_create_customer(phone)
-    if customer["status"] in ("opted_out", "blocked"):
+    if customer["status"] in ("opted_out", "blocked", "inactive"):
         return {"action": "ignore", "reason": customer["status"]}
 
     if is_paused():

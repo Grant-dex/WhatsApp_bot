@@ -904,7 +904,7 @@ async function viewCustomer(id) {
     <div class="detail-field"><label>电话 <button class="copy-btn" onclick="copyToClipboard(document.getElementById('edit-phone').value,'号码已复制')" style="opacity:1;font-size:10px">📋 复制</button></label><input class="input" id="edit-phone" value="${formatPhone(c.phone)}" style="width:100%;padding:6px 10px"></div>
     <div class="detail-field"><label>公司</label><input class="input" id="edit-company" value="${escapeHtml(c.company||'')}" style="width:100%;padding:6px 10px"></div>
     <div class="detail-field"><label>备注</label><textarea class="input" id="edit-notes" style="width:100%;padding:6px 10px;min-height:50px;resize:vertical" rows="2">${escapeHtml(c.notes||'')}</textarea></div>
-    <div class="detail-field"><label>标签</label><input class="input" id="edit-tags" value="${escapeHtml(c.tags||'')}" style="width:100%;padding:6px 10px"></div>
+    <div class="detail-field"><label>标签</label><input class="input" id="edit-tags" value="${escapeHtml((c.tags||'').replace(/^\[\]$/,''))}" style="width:100%;padding:6px 10px"></div>
     <div class="detail-field"><label>创建时间</label><span>${timeShort(c.created_at)}</span></div>
     ${fs ? `<div style="background:var(--teal-bg);border:1px solid var(--teal-light);border-radius:8px;padding:12px;margin-bottom:14px">
       <div style="font-size:10px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">跟进计划</div>
@@ -1047,9 +1047,8 @@ async function selectCustomer(id) {
   const d = await get('/customers/' + id);
   const c = d.customer;
   let msgsHtml = [...d.conversations].reverse().map(m => `
-    <div class="chat-msg ${m.direction}" style="position:relative">
-      <div class="msg-body">${escapeHtml(m.content)}</div><button class="copy-btn" onclick="event.stopPropagation();let t=this.parentElement.querySelector('.msg-body');copyToClipboard(t?t.textContent:'','消息已复制')" title="复制" style="position:absolute;top:4px;right:4px">📋</button>
-      <div class="msg-time">${timeShort(m.sent_at)}${m.ai_generated ? ' <span class="msg-badge">AI</span>' : ''}</div>
+    <div class="chat-msg ${m.direction}">
+      <div class="msg-body">${escapeHtml(m.content)}</div>      <div class="msg-time">${timeShort(m.sent_at)}${m.ai_generated ? ' <span class="msg-badge">AI</span>' : ''}</div>
     </div>`).join('');
 
   const fs = d.followup_schedule;
@@ -1087,9 +1086,8 @@ async function selectCustomer(id) {
       if (!msgsArea) { clearInterval(convPollTimer); convPollTimer = null; return; }
       const scrollBottom = msgsArea.scrollTop + msgsArea.clientHeight >= msgsArea.scrollHeight - 20;
       msgsArea.innerHTML = [...d.conversations].reverse().map(m => `
-        <div class="chat-msg ${m.direction}" style="position:relative">
-          <div class="msg-body">${escapeHtml(m.content)}</div><button class="copy-btn" onclick="event.stopPropagation();let t=this.parentElement.querySelector('.msg-body');copyToClipboard(t?t.textContent:'','消息已复制')" title="复制" style="position:absolute;top:4px;right:4px">📋</button>
-          <div class="msg-time">${timeShort(m.sent_at)}${m.ai_generated ? ' <span class="msg-badge">AI</span>' : ''}</div>
+        <div class="chat-msg ${m.direction}">
+          <div class="msg-body">${escapeHtml(m.content)}</div>          <div class="msg-time">${timeShort(m.sent_at)}${m.ai_generated ? ' <span class="msg-badge">AI</span>' : ''}</div>
         </div>`).join('') || '<div class="text-muted" style="text-align:center">暂无消息</div>';
       if (scrollBottom) msgsArea.scrollTop = msgsArea.scrollHeight;
     } catch(e) {}
