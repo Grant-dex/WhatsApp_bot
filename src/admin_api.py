@@ -450,6 +450,22 @@ async def delete_conversation(conversation_id: int):
     return {"ok": True}
 
 
+@router.delete("/customers/{customer_id}")
+async def delete_customer(customer_id: int):
+    """Delete a customer and all related records (conversations, followup schedule, sent followups)."""
+    conn = get_connection()
+    row = conn.execute("SELECT id, name, phone FROM customers WHERE id=?", (customer_id,)).fetchone()
+    if not row:
+        return {"ok": False, "error": "客户不存在"}
+    conn.execute("DELETE FROM sent_followups WHERE customer_id=?", (customer_id,))
+    conn.execute("DELETE FROM follow_up_schedule WHERE customer_id=?", (customer_id,))
+    conn.execute("DELETE FROM conversations WHERE customer_id=?", (customer_id,))
+    conn.execute("DELETE FROM customers WHERE id=?", (customer_id,))
+    conn.commit()
+    logger.info(f"Deleted customer #{customer_id}: {row['name']} ({row['phone']}) — all related records removed")
+    return {"ok": True, "deleted": {"id": customer_id, "name": row["name"], "phone": row["phone"]}}
+
+
 @router.delete("/customers/{customer_id}/conversations")
 async def delete_customer_conversations(customer_id: int):
     conn = get_connection()

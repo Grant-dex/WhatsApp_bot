@@ -834,6 +834,7 @@ async function loadCustomers(el) {
 	      <td class="mono text-muted">${r.conv_count||0}</td>
 	      <td class="text-muted text-sm">${timeShort(r.last_msg)||'—'}</td>
 	      <td class="text-muted text-sm">${timeShort(r.next_fu)||'—'}</td>
+	      <td><button class="btn btn-xs" style="padding:1px 6px;font-size:10px;opacity:0.3;color:var(--red)" onclick="event.stopPropagation();deleteCustomer(${r.id},'${escapeJs(r.name||'')}')" title="删除客户">×</button></td>
 	    </tr>`).join('');
 
 	  let pages = Math.ceil(d.total / d.per_page) || 1;
@@ -859,7 +860,7 @@ async function loadCustomers(el) {
 	        </div>
 	      </div>
 	      <div class="panel"><div class="panel-body no-pad">
-	        <table><thead><tr><th>姓名</th><th>电话</th><th>公司</th><th>状态</th><th>消息数</th><th>最近联系</th><th>下次跟进</th></tr></thead>
+	        <table><thead><tr><th>姓名</th><th>电话</th><th>公司</th><th>状态</th><th>消息数</th><th>最近联系</th><th>下次跟进</th><th style="width:50px">操作</th></tr></thead>
 	        <tbody id="cust-table-body"></tbody></table>
 	      </div></div>`;
 
@@ -874,7 +875,7 @@ async function loadCustomers(el) {
 
 	  // Only update dynamic parts — search input is NEVER touched
 	  document.getElementById('cust-header-info').textContent = `共 ${d.total} 个客户 · 第 ${d.page}/${pages} 页`;
-	  document.getElementById('cust-table-body').innerHTML = rows || '<tr><td colspan=7 class="text-muted" style="text-align:center;padding:20px">未找到客户</td></tr>';
+	  document.getElementById('cust-table-body').innerHTML = rows || '<tr><td colspan=8 class="text-muted" style="text-align:center;padding:20px">未找到客户</td></tr>';
 	  document.getElementById('cust-page-info').textContent = `第 ${d.page}/${pages} 页`;
 	  document.getElementById('cust-prev-btn').disabled = customerPage <= 1;
 	  document.getElementById('cust-next-btn').disabled = customerPage >= pages;
@@ -996,6 +997,19 @@ async function editCustomerName(id, currentName) {
       if (currentPage === 'conversations') loadPage('conversations');
     }
   });
+}
+
+async function deleteCustomer(id, name) {
+  const label = name || ('#' + id);
+  if (!confirm(`确定删除客户「${label}」吗？\n\n此操作将同时删除：\n- 客户基本信息\n- 所有对话记录\n- 跟进计划\n- 已发送的跟进消息\n\n此操作不可恢复！`)) return;
+  const r = await del(`/customers/${id}`);
+  if (r.ok) {
+    if (selectedCustomerId === id) { selectedCustomerId = null; closeSidebar(); }
+    loadCustomers(document.getElementById('page-customers'));
+    alert(`客户「${label}」已删除`);
+  } else {
+    alert('删除失败: ' + (r.error || '未知错误'));
+  }
 }
 
 async function deleteCustomerConversations(id, name) {
