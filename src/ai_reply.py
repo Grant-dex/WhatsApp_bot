@@ -158,9 +158,165 @@ def check_rate_limits(customer_id: int) -> tuple[bool, str]:
     return True, "ok"
 
 
-# ── AI Reply ─────────────────────────────────────────────────────────────────
+# ── Language Detection ───────────────────────────────────────────────────────
 
 import re
+
+def _detect_message_language(text: str) -> str:
+    """Detect the primary language of a message based on Unicode character ranges.
+
+    Returns a language name for use in AI prompts
+    (e.g. 'English', 'Chinese', 'Arabic', 'Russian').
+    Returns empty string when the message is too short or ambiguous.
+    """
+    if not text or not text.strip():
+        return ""
+
+    text = text.strip()
+
+    cjk = 0       # Chinese / Japanese / Korean
+    arabic = 0    # Arabic / Persian / Urdu scripts
+    cyrillic = 0  # Russian / Ukrainian / etc.
+    latin = 0     # English / European languages
+
+    for ch in text:
+        cp = ord(ch)
+        if (0x4E00 <= cp <= 0x9FFF       # CJK Unified Ideographs
+                or 0x3400 <= cp <= 0x4DBF  # CJK Ext-A
+                or 0x3000 <= cp <= 0x303F  # CJK punctuation
+                or 0xFF00 <= cp <= 0xFFEF  # Fullwidth forms
+                or 0x2E80 <= cp <= 0x2FDF  # CJK Radicals
+                or 0x3200 <= cp <= 0x33FF  # Enclosed CJK
+                or 0xF900 <= cp <= 0xFAFF  # CJK Compatibility
+                or 0xFE30 <= cp <= 0xFE4F  # CJK Compatibility Forms
+        ):
+            cjk += 1
+        elif (0x0600 <= cp <= 0x06FF       # Arabic
+              or 0x0750 <= cp <= 0x077F     # Arabic Supplement
+              or 0xFB50 <= cp <= 0xFDFF     # Arabic Presentation Forms-A
+              or 0xFE70 <= cp <= 0xFEFF     # Arabic Presentation Forms-B
+              or 0x08A0 <= cp <= 0x08FF     # Arabic Extended-A
+        ):
+            arabic += 1
+        elif (0x0400 <= cp <= 0x04FF       # Cyrillic
+              or 0x0500 <= cp <= 0x052F     # Cyrillic Supplement
+        ):
+            cyrillic += 1
+        elif (0x0041 <= cp <= 0x005A        # A-Z
+              or 0x0061 <= cp <= 0x007A     # a-z
+              or 0x00C0 <= cp <= 0x024F     # Latin Extensions
+              or 0x1E00 <= cp <= 0x1EFF     # Latin Extended Additional
+        ):
+            latin += 1
+
+    total = cjk + arabic + cyrillic + latin
+    if total == 0:
+        return ""
+
+    # CJK dominant → Chinese (threshold conservative to avoid false positives)
+    if cjk > total * 0.3:
+        return "Chinese"
+    if arabic > total * 0.3:
+        return "Arabic"
+    if cyrillic > total * 0.4:
+        return "Russian"
+    # Latin-script messages → English (the international business default)
+    return "English"
+
+
+def _country_to_language(country_name: str) -> str:
+    """Map a country name to its primary business language for follow-up messages.
+
+    Returns a human-readable language name (e.g. 'English', 'Arabic').
+    Returns empty string when the country cannot be mapped.
+    """
+    if not country_name:
+        return ""
+
+    COUNTRY_LANG = {
+        # East Asia
+        "China": "Chinese (Simplified)",
+        "Japan": "English",
+        "South Korea": "English",
+        # Southeast Asia
+        "Vietnam": "Vietnamese",
+        "Indonesia": "English",
+        "Thailand": "English",
+        "Malaysia": "English",
+        "Philippines": "English",
+        "Singapore": "English",
+        "Myanmar": "English",
+        "Cambodia": "English",
+        # South Asia
+        "India": "English",
+        "Pakistan": "English",
+        "Bangladesh": "English",
+        # Middle East
+        "Saudi Arabia": "Arabic",
+        "United Arab Emirates": "English",
+        "Qatar": "English",
+        "Oman": "English",
+        "Kuwait": "English",
+        "Bahrain": "English",
+        "Iraq": "Arabic",
+        "Jordan": "Arabic",
+        "Lebanon": "Arabic",
+        "Sudan": "Arabic",
+        "Morocco": "French",
+        "Algeria": "French",
+        "Tunisia": "French",
+        # Africa
+        "Egypt": "Arabic",
+        "Nigeria": "English",
+        "South Africa": "English",
+        "Kenya": "English",
+        "Tanzania": "English",
+        "Ghana": "English",
+        "Ethiopia": "English",
+        # Central Asia / Caucasus
+        "Kazakhstan": "Russian",
+        "Uzbekistan": "Russian",
+        "Azerbaijan": "Russian",
+        "Turkmenistan": "Russian",
+        # Europe
+        "Germany": "German",
+        "France": "French",
+        "Spain": "Spanish",
+        "Italy": "Italian",
+        "Netherlands": "English",
+        "Belgium": "English",
+        "Poland": "English",
+        "Czech Republic": "English",
+        "Romania": "English",
+        "United Kingdom": "English",
+        # CIS
+        "Russia": "Russian",
+        "Ukraine": "Ukrainian",
+        "Turkey": "English",
+        # Americas
+        "Brazil": "Portuguese",
+        "Mexico": "Spanish",
+        "Argentina": "Spanish",
+        "Chile": "Spanish",
+        "Colombia": "Spanish",
+        "Peru": "Spanish",
+        # Oceania
+        "Australia": "English",
+    }
+
+    # Exact match
+    if country_name in COUNTRY_LANG:
+        return COUNTRY_LANG[country_name]
+
+    # Partial match (e.g. "Saudi Arabia" contained in longer string)
+    for key, lang in COUNTRY_LANG.items():
+        if key.lower() in country_name.lower() or country_name.lower() in key.lower():
+            return lang
+
+    return ""
+
+
+# ── AI Reply ─────────────────────────────────────────────────────────────────
 
 def _clean_reply(text: str) -> str:
     """Strip Markdown formatting and normalize newlines for WhatsApp."""
@@ -186,11 +342,26 @@ def generate_reply(customer: dict, incoming_message: str) -> str:
     cfg = get_config()
     try:
         client = _get_client()
+
+        # Detect the customer's language from the actual message content.
+        # Character-level detection is not affected by the system prompt language,
+        # so CJK / Arabic / Cyrillic scripts are reliably identified.
+        detected_lang = _detect_message_language(incoming_message)
+
         messages = [
             {"role": "system", "content": _build_system_prompt(customer)},
             {"role": "system", "content": _build_specs_message()},
         ]
         messages.extend(_build_chat_messages(customer["id"], 10))
+
+        # Explicit language instruction prevents the AI from defaulting to
+        # Chinese when the incoming message is short or ambiguous.
+        if detected_lang:
+            messages.append({
+                "role": "system",
+                "content": f"IMPORTANT: The customer wrote in {detected_lang}. You MUST reply in {detected_lang}."
+            })
+
         messages.append({"role": "user", "content": incoming_message})
         resp = client.chat.completions.create(model=cfg.ai.model, max_tokens=800, messages=messages)
         reply = _clean_reply(resp.choices[0].message.content)
@@ -220,6 +391,11 @@ def generate_followup(customer: dict) -> str:
     country_name = country_info.get("country_name", "")
     power_context = get_power_context(country_name)
 
+    # Determine the customer's language from their phone country prefix.
+    # This prevents the AI from guessing (and often defaulting to Chinese)
+    # when no chat history exists.
+    language = _country_to_language(country_name)
+
     try:
         client = _get_client()
         country_hint = ""
@@ -230,12 +406,23 @@ def generate_followup(customer: dict) -> str:
             else:
                 country_hint += f"\nGlobal power industry trends: {GLOBAL_POWER_TRENDS}"
 
+        # Build an explicit language instruction instead of the vague
+        # "Match the customer's language" which the AI often misinterprets.
+        if language:
+            lang_instruction = f"You MUST write this message in {language}."
+        elif country_name:
+            lang_instruction = f"Write this message in the most common business language for {country_name}."
+        else:
+            lang_instruction = "Write this message in English."
+
         resp = client.chat.completions.create(
             model=cfg.ai.model, max_tokens=400,
             messages=[
                 {"role": "system", "content": f"""You are a technical sales follow-up assistant for a gas generator manufacturer (7kW-4.5MW, OEM partner of MWM, Lister Petter, CNPC Jichai, MAN).
 
-Write a short, warm follow-up message in the customer's language. One or two sentences max, casual not pushy.
+Write a short, warm follow-up message. One or two sentences max, casual not pushy.
+
+{lang_instruction}
 
 IMPORTANT: Sign off with the sender's real name which is {cfg.business.owner_name}. NEVER use placeholder text like [Your Name], [Name], or any bracket text — always use the actual name.
 
@@ -243,13 +430,11 @@ When there is local electricity/power industry context, naturally reference it t
 - If their country has grid reliability issues, mention how gas gensets help with backup power
 - If they're in oil & gas, mention reliable power for remote operations
 - If they're transitioning from coal, mention cleaner natural gas alternatives
-- Don't force it — if the context doesn't fit naturally, just be warmly casual
-
-Match the customer's language: Chinese, English, Russian, Arabic, etc."""},
+- Don't force it — if the context doesn't fit naturally, just be warmly casual"""},
                 {"role": "user", "content": f"""Customer: {customer.get('name','Valued Customer')} from {customer.get('company','N/A')}.
 Notes: {customer.get('notes','N/A')}.{country_hint}
 
-Write a short follow-up message, and sign off as {cfg.business.owner_name}:"""},
+Write a short follow-up message in {language if language else 'English'}, and sign off as {cfg.business.owner_name}:"""},
             ])
         return _clean_reply(resp.choices[0].message.content)
     except Exception as e:
