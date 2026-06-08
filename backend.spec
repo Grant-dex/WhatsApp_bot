@@ -60,6 +60,7 @@ a = Analysis(
         'cv2',
         'numpy',
         'onnxruntime',
+        'country_utils',
     ],
     hookspath=[],
     hooksconfig={},
