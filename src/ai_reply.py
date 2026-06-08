@@ -237,6 +237,8 @@ def generate_followup(customer: dict) -> str:
 
 Write a short, warm follow-up message in the customer's language. One or two sentences max, casual not pushy.
 
+IMPORTANT: Sign off with the sender's real name which is {cfg.business.owner_name}. NEVER use placeholder text like [Your Name], [Name], or any bracket text — always use the actual name.
+
 When there is local electricity/power industry context, naturally reference it to show you understand their market. For example:
 - If their country has grid reliability issues, mention how gas gensets help with backup power
 - If they're in oil & gas, mention reliable power for remote operations
@@ -247,7 +249,7 @@ Match the customer's language: Chinese, English, Russian, Arabic, etc."""},
                 {"role": "user", "content": f"""Customer: {customer.get('name','Valued Customer')} from {customer.get('company','N/A')}.
 Notes: {customer.get('notes','N/A')}.{country_hint}
 
-Write a short follow-up message:"""},
+Write a short follow-up message, and sign off as {cfg.business.owner_name}:"""},
             ])
         return _clean_reply(resp.choices[0].message.content)
     except Exception as e:
