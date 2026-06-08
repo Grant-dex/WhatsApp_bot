@@ -14,6 +14,7 @@
 | 定时跟进调度（APScheduler） | ⚠️ | 调度器运行中，但上次因 send-now 500 可能积压 |
 | 客户管理 / 跟进管理页面 | ✅ | 电话可编辑、名称修改均已修复 |
 | PDF 上传 | ⚠️ | PyPDF2 加入 base_library.zip，未重新验证 |
+| 客户删除（级联清理） | ✅ | 新增 DELETE /customers/{id}，支持前端一键删除 |
 | 前端 JS（导航、搜索等） | ✅ | ${old5} 过滤器已注入 |
 
 ## 已知待修复
@@ -31,9 +32,9 @@
 | 项目 | 值 |
 |------|-----|
 | 仓库 | `https://github.com/Grant-dex/WhatsApp_bot` |
-| 最新 commit | `ac4f33c` — fix: add country_utils to hiddenimports in spec files |
+| 最新 commit | `d0edffa` — feat: add delete customer functionality with cascade cleanup |
 | 分支 | `main` |
-| 最近三个 commits | `ac4f33c` / `e86014e` / `32e7de3`（均为 2026-06-08 语言检测 + spec 修复） |
+| 最近 commits | `d0edffa` / `774b471` / `ac4f33c` / `e86014e` / `32e7de3`（2026-06-08 批量推送修复 + 语言检测 + 文档体系 + 客户删除） |
 
 ## 数据状态
 
@@ -42,8 +43,9 @@
 | 客户总数 | 648 | 2026-06-08 |
 | 活跃跟进计划 | 247 | 2026-06-08 |
 | 暂停跟进计划 | 11 | 2026-06-08 |
-| 无效号码（姓名当号码） | 397 | 2026-06-08 |
-| 今日跟进发送数 | 若干条（测试 send-now 时已发送） | 2026-06-08 |
+| 无效号码（姓名当号码） | 397（369 active + 28 inactive） | 2026-06-08 |
+| 无效号码中有跟进计划的 | 60（批量推送会失败） | 2026-06-08 |
+| 无效号码中有对话记录的 | 1（其余 396 从未给 bot 发消息） | 2026-06-08 |
 
 ## 下次打包/部署检查项
 
