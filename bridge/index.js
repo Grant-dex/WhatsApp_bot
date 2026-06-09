@@ -124,6 +124,58 @@ async function start() {
     });
 }
 
+// ── Follow-up message transformation ──────────────────────
+// Hardcoded template from Python backend uses full name and fixed phrasing.
+// We intercept and rewrite to use first name + varied human-like templates.
+
+function getFirstName(fullName) {
+    if (!fullName) return 'there';
+    const parts = fullName.trim().split(/\s+/);
+    let first = parts[0];
+    // Skip titles: Mr., Mrs., Ms., Miss, Dr., Prof., Eng., Sir, Madam
+    if (/^(Mr|Mrs|Ms|Miss|Dr|Prof|Eng|Sir|Madam)\.?$/i.test(first)) {
+        first = parts.length > 1 ? parts[1] : first;
+    }
+    // Skip single-letter initials
+    if (first.length <= 1 && parts.length > 1) {
+        first = parts[1];
+    }
+    // Capitalize first letter
+    return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
+}
+
+const FOLLOWUP_VARIATIONS = [
+    (firstName) => `Hi ${firstName}, hope you're having a great week! This is Grant from Tide Power. Just wanted to check in — is there anything I can help with regarding your power generation needs?`,
+    (firstName) => `Hi ${firstName}, Grant here from Tide Power. Following up on our earlier conversation — let me know if you have any questions or would like more details on any of our gas generator solutions.`,
+    (firstName) => `Hello ${firstName}, just a quick note from Grant at Tide Power. Wanted to see if you had any updates on your project, or if I can assist with anything at all.`,
+    (firstName) => `Hi ${firstName}, hope all is well! Grant from Tide Power checking in. If you need technical specs, pricing, or just want to discuss options, I'm here to help.`,
+    (firstName) => `Hi ${firstName}, this is Grant with Tide Power. I wanted to follow up and see if the information we shared was helpful — happy to go deeper on any topic or answer any questions.`,
+    (firstName) => `Hello ${firstName}, Grant from Tide Power here. Just touching base to see how things are going with your project — let me know if you need anything at all.`,
+    (firstName) => `Hi ${firstName}, hope your week is going well! This is Grant at Tide Power. Quick check-in — any thoughts on the generator options we discussed? I'm here if you need anything.`,
+];
+
+function transformFollowupMessage(message, phone) {
+    // Match the Python backend's hardcoded followup template:
+    // "Hi <Full Name>, this is <Owner> from <Company>. Just following up on our conversation - is there anything I can help you with?"
+    const pattern = /^Hi\s+(.+?),\s+this is\s+\S+(?:\s+\S+)?\s+from\s+\S.+?\.\s+Just following up on our conversation\s*[-–—]\s*is there anything I can help you with\??\s*$/i;
+    const match = message.match(pattern);
+    if (!match) return message; // Not the hardcoded followup template — pass through
+
+    const fullName = match[1].trim();
+    const firstName = getFirstName(fullName);
+
+    // Hash phone number to pick a consistent variation per customer
+    let hash = 0;
+    for (let i = 0; i < phone.length; i++) {
+        hash = ((hash << 5) - hash) + phone.charCodeAt(i);
+        hash |= 0;
+    }
+    const idx = Math.abs(hash) % FOLLOWUP_VARIATIONS.length;
+    const transformed = FOLLOWUP_VARIATIONS[idx](firstName);
+    console.log('[send] transformed followup:', fullName, '->', firstName, '| variant', idx);
+    return transformed;
+}
+
 app.get('/health', (_, r) => r.json({ status: 'ok' }));
 app.get('/chats', (_, r) => {
     const chatList = Array.from(contacts.values());
@@ -134,8 +186,24 @@ app.post('/send', async (req, res) => {
     if (!clientReady || !sock) return res.status(503).json({ status: 'failed', error: '桥接未认证，请先扫码登录 WhatsApp' });
     let { phone, message } = req.body;
     if (!phone || !message) return res.status(400).json({ status: 'failed', error: '电话号码和消息内容不能为空' });
-    phone = phone.replace(/^\+/, '');
+    // ── Robust phone cleaning ──────────────────────────────
+    // Strip invisible/control Unicode chars using \u escapes
+    phone = phone.replace(/[\u200B-\u200F\u2028-\u202E\u2060-\u2069\uFEFF\uFFF0-\uFFFF]/g, '');
+    // Strip leading/trailing + signs
+    phone = phone.replace(/^\++/, '').replace(/\++$/, '');
+    // Remove @lid, @c.us, @s.whatsapp.net suffixes
+    phone = phone.replace(/@lid$/, '').replace(/@c\.us$/, '').replace(/@s\.whatsapp\.net$/, '');
+    // Remove spaces, dashes, parentheses
+    phone = phone.replace(/[\s\-\(\)]/g, '');
+    // Strip any non-digit leading chars
+    phone = phone.replace(/^[^\d]+/, '');
+    // Final trim
+    phone = phone.trim();
+    if (!phone) return res.status(400).json({ status: 'failed', error: '清理后电话号码为空' });
+    // Transform hardcoded followup template → first name + varied human-like message
+    message = transformFollowupMessage(message, phone);
     const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
+    console.log('[send] cleaned phone:', phone, '-> jid:', jid);
     try {
         await Promise.race([
             sock.sendMessage(jid, { text: message }),

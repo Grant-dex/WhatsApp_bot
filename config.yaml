@@ -4,7 +4,7 @@ app:
 
 business:
   owner_name: "Grant"
-  company_name: "WhatsApp-bot"
+  company_name: "Tide Power"
   quiet_hours_start: 21
   quiet_hours_end: 8
   max_auto_replies_per_hour: 30

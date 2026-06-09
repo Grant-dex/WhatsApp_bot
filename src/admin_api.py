@@ -3,6 +3,7 @@ Admin API endpoints for the management console.
 Provides JSON data for Dashboard, Customers, Conversations, Follow-ups, and Bridge Status.
 """
 import json
+import logging
 import os
 from datetime import datetime
 from pathlib import Path
@@ -12,6 +13,8 @@ import csv
 import io
 
 import openpyxl
+
+logger = logging.getLogger(__name__)
 from fastapi import APIRouter, File, Query, UploadFile
 
 from config import get_config, get_data_dir
@@ -218,6 +221,95 @@ async def customers(
         "per_page": per_page,
         "items": [dict(r) for r in rows],
     }
+
+
+# ── Invalid Phone Detection & Cleanup (must be BEFORE {customer_id} route) ──
+
+@router.get("/customers/invalid-phones")
+async def list_invalid_phones():
+    """Detect customers whose phone field contains names instead of phone numbers."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT c.id, c.phone, c.name, c.status, c.company, c.notes,
+                  (SELECT COUNT(*) FROM conversations WHERE customer_id=c.id) as conv_count,
+                  (SELECT COUNT(*) FROM follow_up_schedule WHERE customer_id=c.id AND active=1) as active_fu_count
+           FROM customers c
+           WHERE c.phone GLOB '*[A-Za-z]*' AND c.phone NOT GLOB '+*'
+           ORDER BY c.status, c.id"""
+    ).fetchall()
+
+    items = [dict(r) for r in rows]
+    total = len(items)
+    with_conv = sum(1 for r in items if r["conv_count"] > 0)
+    with_fu = sum(1 for r in items if r["active_fu_count"] > 0)
+    safe_to_delete = sum(1 for r in items if r["conv_count"] == 0)
+
+    return {
+        "total_invalid": total,
+        "with_conversations": with_conv,
+        "with_active_followup": with_fu,
+        "safe_to_delete": safe_to_delete,
+        "items": items,
+    }
+
+
+@router.post("/customers/cleanup-invalid-phones")
+async def cleanup_invalid_phones(data: dict):
+    """Batch cleanup invalid phone numbers.
+
+    Actions:
+      - "detect_only": return list without making changes
+      - "delete_safe": delete customers with invalid phones AND no conversations
+      - "mark_inactive": mark customers with invalid phones as inactive (if they have conversations)
+    """
+    action = data.get("action", "detect_only")
+    conn = get_connection()
+
+    invalid = conn.execute(
+        """SELECT c.id, c.phone, c.name, c.status,
+                  (SELECT COUNT(*) FROM conversations WHERE customer_id=c.id) as conv_count
+           FROM customers c
+           WHERE c.phone GLOB '*[A-Za-z]*' AND c.phone NOT GLOB '+*'"""
+    ).fetchall()
+
+    result = {"action": action, "total_invalid": len(invalid)}
+
+    if action == "detect_only":
+        result["message"] = f"发现 {len(invalid)} 个无效号码。使用 action=delete_safe 或 action=mark_inactive 执行清理。"
+        return result
+
+    if action == "delete_safe":
+        to_delete = [r for r in invalid if r["conv_count"] == 0]
+        deleted_ids = []
+        for r in to_delete:
+            cid = r["id"]
+            conn.execute("DELETE FROM sent_followups WHERE customer_id=?", (cid,))
+            conn.execute("DELETE FROM follow_up_schedule WHERE customer_id=?", (cid,))
+            conn.execute("DELETE FROM conversations WHERE customer_id=?", (cid,))
+            conn.execute("DELETE FROM customers WHERE id=?", (cid,))
+            deleted_ids.append({"id": cid, "phone": r["phone"], "name": r["name"]})
+        conn.commit()
+        result["deleted_count"] = len(deleted_ids)
+        result["deleted"] = deleted_ids
+        result["skipped_count"] = len(invalid) - len(deleted_ids)
+        result["message"] = f"已删除 {len(deleted_ids)} 个无效号码客户（无对话记录），跳过 {result['skipped_count']} 个（有对话记录需手动处理）"
+        return result
+
+    if action == "mark_inactive":
+        updated_count = 0
+        for r in invalid:
+            conn.execute(
+                "UPDATE customers SET status='inactive', notes=COALESCE(notes,'') || ' [自动标记：电话号码无效]', updated_at=? WHERE id=?",
+                (datetime.now().isoformat(), r["id"]))
+            conn.execute("UPDATE follow_up_schedule SET active=0 WHERE customer_id=?", (r["id"],))
+            updated_count += 1
+        conn.commit()
+        result["marked_inactive"] = updated_count
+        result["message"] = f"已将 {updated_count} 个无效号码客户标记为 inactive，其跟进计划已全部暂停。"
+        return result
+
+    result["error"] = f"未知操作: {action}，支持 detect_only / delete_safe / mark_inactive"
+    return result
 
 
 @router.get("/customers/{customer_id}")
