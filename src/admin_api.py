@@ -352,7 +352,51 @@ async def update_customer_status(customer_id: int, data: dict):
     if not row:
         return {"error": "not found"}
     new_phone = updates.pop("phone", None)
-    result = update_customer(row["phone"], new_phone=new_phone, **updates)
+    try:
+        result = update_customer(row["phone"], new_phone=new_phone, **updates)
+    except Exception as e:
+        err_msg = str(e)
+        if "UNIQUE constraint" in err_msg and "customers.phone" in err_msg and new_phone:
+            # ── Smart merge: reassign data from the phone owner to current customer ──
+            existing = get_connection().execute(
+                "SELECT * FROM customers WHERE phone=?", (new_phone,)
+            ).fetchone()
+            if existing and existing["id"] != customer_id:
+                conn = get_connection()
+                # Reassign all related data from existing customer to current customer
+                conn.execute("UPDATE conversations SET customer_id=? WHERE customer_id=?",
+                             (customer_id, existing["id"]))
+                conn.execute("UPDATE follow_up_schedule SET customer_id=? WHERE customer_id=?",
+                             (customer_id, existing["id"]))
+                conn.execute("UPDATE sent_followups SET customer_id=? WHERE customer_id=?",
+                             (customer_id, existing["id"]))
+                conn.execute("UPDATE orders SET customer_id=? WHERE customer_id=?",
+                             (customer_id, existing["id"]))
+                # Delete the old customer (frees the phone number)
+                conn.execute("DELETE FROM customers WHERE id=?", (existing["id"],))
+                conn.commit()
+                logger.info(
+                    f"Merged customer #{existing['id']} ({existing['name']}, {existing['phone']}) "
+                    f"into #{customer_id} — all related records reassigned, old record deleted"
+                )
+                # Now the phone is free — retry the update
+                try:
+                    result = update_customer(row["phone"], new_phone=new_phone, **updates)
+                except Exception as e2:
+                    return {"ok": False, "error": f"合并后更新失败：{e2}"}
+                return {
+                    "ok": True,
+                    "customer": result,
+                    "merged_from": {
+                        "id": existing["id"],
+                        "name": existing["name"],
+                        "phone": existing["phone"],
+                    },
+                }
+            return {"ok": False, "error": f"电话号码 {new_phone} 已存在，无法保存。请检查是否与其他客户重复。"}
+        return {"ok": False, "error": f"保存失败：{err_msg}"}
+    if result is None and new_phone:
+        return {"ok": False, "error": f"更新失败，电话号码可能已被占用或客户不存在。"}
     return {"ok": True, "customer": result}
 
 

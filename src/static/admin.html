@@ -975,13 +975,17 @@ async function saveCustomerEdits(id) {
   const company = document.getElementById('edit-company')?.value?.trim() || '';
   const notes = document.getElementById('edit-notes')?.value?.trim() || '';
   const tags = document.getElementById('edit-tags')?.value?.trim() || '';
-  const r = await post(`/customers/${id}/status`, {phone, company, notes, tags});
-  if (r.ok) {
-    closeSidebar();
-    if (currentPage === 'customers') loadPage('customers');
-    else if (currentPage === 'conversations') loadPage('conversations');
-  } else {
-    alert('保存失败');
+  try {
+    const r = await post(`/customers/${id}/status`, {phone, company, notes, tags});
+    if (r.ok) {
+      closeSidebar();
+      if (currentPage === 'customers') loadPage('customers');
+      else if (currentPage === 'conversations') loadPage('conversations');
+    } else {
+      alert('保存失败：' + (r.error || '未知错误'));
+    }
+  } catch(e) {
+    alert('保存失败: ' + (e.message || '网络错误，请检查后端是否正常运行'));
   }
 }
 
@@ -1427,7 +1431,6 @@ function updateAutoBatchInfo() {
   }
 }
 
-${old5}
 async function loadFollowups(el) {
   // Reset any stale batch state when page loads fresh
   if (batchPushState.running) {

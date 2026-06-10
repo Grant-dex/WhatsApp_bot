@@ -135,8 +135,12 @@ def update_customer(phone: str, new_phone: Optional[str] = None, **kwargs) -> Op
     set_clause = ", ".join(f"{k}=?" for k in updates)
     conn = get_connection()
     with _write_lock:
-        conn.execute(f"UPDATE customers SET {set_clause} WHERE phone=?", list(updates.values()) + [phone])
-        conn.commit()
+        try:
+            conn.execute(f"UPDATE customers SET {set_clause} WHERE phone=?", list(updates.values()) + [phone])
+            conn.commit()
+        except sqlite3.IntegrityError:
+            # UNIQUE constraint on phone — likely duplicate phone number
+            raise
     row = conn.execute("SELECT * FROM customers WHERE phone=?", (lookup_phone,)).fetchone()
     return dict(row) if row else None
 
