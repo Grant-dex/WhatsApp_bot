@@ -1,6 +1,6 @@
 # WhatsApp-Bot 项目状态
 
-> 最后更新：2026-06-09
+> 最后更新：2026-06-10
 
 ## 功能状态
 
@@ -17,7 +17,8 @@
 | 无效号码检测与清理 | ✅ | 新增 API 端点（detect_only / delete_safe / mark_inactive）+ 独立 SQL 脚本 |
 | PDF 上传 | ✅ | PyPDF2 + openpyxl（numpy 2.x 兼容补丁）+ xlrd 均已打包验证 |
 | 客户删除（级联清理） | ✅ | 新增 DELETE /customers/{id}，支持前端一键删除 |
-| 前端 JS（导航、搜索等） | ✅ | ${old5} 过滤器已注入 |
+| 客户编辑智能合并 | ✅ | 修改手机号遇重复时自动合并关联数据，删除旧记录 |
+| 前端 JS（导航、搜索等） | ✅ | ${old5} 过滤器已注入，保存失败显示具体中文错误原因 |
 | config.yaml | ✅ | company_name 已改为 "Tide Power" |
 
 ## 已知待修复
@@ -33,8 +34,16 @@
 | 项目 | 值 |
 |------|-----|
 | 仓库 | `https://github.com/Grant-dex/WhatsApp_bot` |
-| 最新 commit | `d0edffa` — feat: add delete customer functionality with cascade cleanup |
+| 最新 commit | `0fc2fc7` — feat: 客户编辑时智能合并重复号码 + 前端错误提示优化 |
 | 分支 | `main` |
+
+## 最近重要修改（2026-06-10）
+
+| 修改 | 文件 | 说明 |
+|------|------|------|
+| 客户编辑智能合并 | `src/admin_api.py` | 编辑客户手机号遇 UNIQUE 冲突时，自动将旧记录下的对话/跟进/订单合并到当前客户，删除重复记录 |
+| 数据库 UNIQUE 约束处理 | `src/database.py` | 显式捕获 sqlite3.IntegrityError 并上抛，供 API 层做合并处理 |
+| 前端错误提示优化 | `src/static/admin.html` | 保存失败显示具体中文错误原因，清理 `${old5}` 模板残留 |
 
 ## 最近重要修改（2026-06-09）
 
