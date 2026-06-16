@@ -10,6 +10,7 @@ from config import get_config
 from database import get_connection, get_customers_due_for_followup, record_followup, save_message, update_followup_schedule
 from followup import generate_followup_message, get_random_delay
 from bot_state import is_paused
+from agent_brain import daily_agent_workflow
 
 logger = logging.getLogger(__name__)
 _check_lock = threading.Lock()
@@ -47,23 +48,35 @@ async def check_followups():
         if is_quiet_hours():
             return
         cfg = get_config()
-        candidates = get_customers_due_for_followup()
-        if not candidates:
-            return
         daily_limit = cfg.business.max_auto_replies_per_day
         already_sent = _count_today_auto_sent()
         remaining = daily_limit - already_sent
         if remaining <= 0:
             logger.info(f"Follow-up check: daily limit reached ({already_sent}/{daily_limit})")
             return
+
+        # ── Agent Brain: get prioritized targets ──
+        from scoring_engine import prioritize_daily_targets
+        targets = prioritize_daily_targets(remaining)
+        if not targets:
+            return
+
         sent = 0
-        for customer in candidates:
+        for target in targets:
             if sent >= remaining:
                 logger.info(f"Follow-up check: daily limit hit ({already_sent + sent}/{daily_limit})")
                 break
             if is_quiet_hours():
                 break
-            message = generate_followup_message(customer)
+            customer = target
+            # ── Build strategy context for personalized messaging ──
+            from database import get_memory_summary
+            strategy_ctx = {
+                "message_type": target.get("strategy", "casual_checkin"),
+                "segment": target.get("segment", "new"),
+                "memory_summary": get_memory_summary(target["customer_id"]),
+            }
+            message = generate_followup_message(customer, strategy_context=strategy_ctx)
             result = await send_message(customer["phone"], message)
             cid = customer["customer_id"]
             sid = customer["schedule_id"]
@@ -75,7 +88,8 @@ async def check_followups():
             else:
                 record_followup(cid, sid, None, status="failed", error_message=result.get("error", "unknown"))
             await asyncio.sleep(get_random_delay())
-        logger.info(f"Follow-up: {sent} sent, {len(candidates)-sent} failed")
+        logger.info(f"Follow-up: {sent} sent, {len(targets)-sent} failed "
+                     f"({already_sent + sent}/{daily_limit} daily)")
     except Exception as e:
         logger.error(f"Follow-up error: {e}", exc_info=True)
     finally:
@@ -106,9 +120,24 @@ def start_scheduler():
         trigger=IntervalTrigger(hours=24, start_date=f"{datetime.now().strftime('%Y-%m-%d')} 10:00:00"),
         id="auto_batch_push", replace_existing=True
     )
+    # Daily agent morning workflow at 8:00 AM
+    scheduler.add_job(
+        run_daily_agent_workflow,
+        trigger=IntervalTrigger(hours=24, start_date=f"{datetime.now().strftime('%Y-%m-%d')} 08:00:00"),
+        id="daily_agent_workflow", replace_existing=True
+    )
     scheduler.start()
-    logger.info(f"Scheduler started: every {config.scheduler.followup_check_interval_minutes}min + daily auto-batch at 10:00")
+    logger.info(f"Scheduler started: every {config.scheduler.followup_check_interval_minutes}min "
+                f"+ daily agent workflow at 08:00 + daily auto-batch at 10:00")
     return scheduler
+
+
+def run_daily_agent_workflow():
+    """Wrapper to run the async daily agent workflow in the scheduler thread."""
+    try:
+        daily_agent_workflow()
+    except Exception as e:
+        logger.error(f"Daily agent workflow error: {e}", exc_info=True)
 
 
 async def auto_batch_push():
@@ -127,25 +156,36 @@ async def auto_batch_push():
             logger.info("Auto-batch skipped: quiet hours")
             return
         cfg = get_config()
-        candidates = get_customers_due_for_followup()
-        if not candidates:
-            logger.info("Auto-batch: no due followups")
-            return
         daily_limit = cfg.business.max_auto_replies_per_day
         already_sent = _count_today_auto_sent()
         remaining = daily_limit - already_sent
         if remaining <= 0:
             logger.info(f"Auto-batch: daily limit reached ({already_sent}/{daily_limit})")
             return
-        logger.info(f"Auto-batch: sending followups to up to {min(len(candidates), remaining)}/{len(candidates)} candidates (daily: {already_sent}/{daily_limit})")
+
+        # ── Agent Brain: get prioritized targets ──
+        from scoring_engine import prioritize_daily_targets
+        targets = prioritize_daily_targets(remaining)
+        if not targets:
+            logger.info("Auto-batch: no due followups")
+            return
+
+        logger.info(f"Auto-batch: sending followups to up to {min(len(targets), remaining)}/{len(targets)} candidates (daily: {already_sent}/{daily_limit})")
         sent = 0
-        for customer in candidates:
+        for target in targets:
             if sent >= remaining:
                 logger.info(f"Auto-batch: daily limit hit ({already_sent + sent}/{daily_limit})")
                 break
             if is_quiet_hours():
                 break
-            message = generate_followup_message(customer)
+            customer = target
+            from database import get_memory_summary
+            strategy_ctx = {
+                "message_type": target.get("strategy", "casual_checkin"),
+                "segment": target.get("segment", "new"),
+                "memory_summary": get_memory_summary(target["customer_id"]),
+            }
+            message = generate_followup_message(customer, strategy_context=strategy_ctx)
             result = await send_message(customer["phone"], message)
             cid = customer["customer_id"]
             sid = customer["schedule_id"]
@@ -157,7 +197,7 @@ async def auto_batch_push():
             else:
                 record_followup(cid, sid, None, status="failed", error_message=result.get("error", "unknown"))
             await asyncio.sleep(120)  # 2 min interval for auto-batch
-        logger.info(f"Auto-batch complete: {sent}/{len(candidates)} sent")
+        logger.info(f"Auto-batch complete: {sent}/{len(targets)} sent")
     except Exception as e:
         logger.error(f"Auto-batch error: {e}", exc_info=True)
     finally:
