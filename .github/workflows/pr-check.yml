@@ -1,0 +1,29 @@
+name: PR Check
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  syntax-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check Python syntax
+        run: |
+          echo "Checking all Python files for syntax errors..."
+          FAILED=0
+          for f in $(find src -name "*.py" -type f); do
+            python -m py_compile "$f" || FAILED=1
+          done
+          if [ $FAILED -eq 1 ]; then
+            echo "❌ Syntax check failed!"
+            exit 1
+          fi
+          echo "✅ All files pass syntax check"
