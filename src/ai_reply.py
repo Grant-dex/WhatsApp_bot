@@ -444,5 +444,151 @@ Write a short follow-up message in {language if language else 'English'}, and si
         return f"Hi {customer.get('name','there')}, just checking in — anything I can help with regarding the gas generators?"
 
 
+# ── Strategy-Aware Message Generation ─────────────────────────────────────────
+
+STRATEGY_PROMPTS = {
+    "quote_followup": """You are following up on a pricing/quote discussion.
+The customer has shown buying intent. Write a warm follow-up that:
+- References the previous pricing discussion naturally
+- Asks about their decision timeline without being pushy
+- Offers to provide additional specs or answer questions
+- Keeps it to 2-3 sentences max
+{lang_instruction}
+Sign off as {owner_name}.""",
+
+    "specs_solution": """You are a technical sales engineer following up with a customer
+who has shown interest in specific technical details. Write a message that:
+- References their specific technical requirements if you know them
+- Offers relevant technical information or documentation
+- Shows technical competence without being overwhelming
+- Keeps it to 2-3 sentences max
+{lang_instruction}
+Sign off as {owner_name}.""",
+
+    "casual_checkin": """You are a friendly sales rep checking in on a customer.
+Write a warm, casual message that:
+- Feels like a natural WhatsApp message from a real person
+- Doesn't push for a sale — just maintains the relationship
+- References something from previous conversations if possible
+- Keeps it to 1-2 sentences max
+{lang_instruction}
+Sign off as {owner_name}.""",
+
+    "value_add": """You are sharing valuable market or product insight with a customer.
+Write a message that:
+- Shares one interesting fact or insight relevant to their business
+- Positions you as a helpful industry resource, not a salesperson
+- Invites conversation naturally
+- Keeps it to 2-3 sentences max
+{lang_instruction}
+Sign off as {owner_name}.""",
+
+    "re_engage": """You are trying to re-engage a customer who hasn't responded in a while.
+Write a message that:
+- Takes a fresh angle — don't repeat what you've said before
+- Is light and low-pressure
+- Gives them an easy way to respond (a simple question)
+- Keeps it to 1-2 sentences max
+{lang_instruction}
+Sign off as {owner_name}.""",
+
+    "win_back": """You are reaching out to a dormant customer who hasn't engaged in months.
+Write a message that:
+- Is very low-pressure — they may have forgotten about you
+- Reminds them gently that you're still here if they need anything
+- Does NOT sound desperate or spammy
+- Keeps it to 1 sentence max
+{lang_instruction}
+Sign off as {owner_name}.""",
+
+    "introduction": """You are introducing yourself to a new customer for the first time.
+Write a message that:
+- Briefly introduces who you are and what your company does
+- Shows you understand their market/country context
+- Opens the door for conversation without being salesy
+- Keeps it to 2-3 sentences max
+{lang_instruction}
+Sign off as {owner_name}.""",
+
+    "reactivation": """You are reactivating a customer who may have gone quiet.
+Write a message that:
+- Has a timely hook (market update, new product, industry news)
+- Feels fresh and worth responding to
+- Is casual and non-committal
+- Keeps it to 1-2 sentences max
+{lang_instruction}
+Sign off as {owner_name}.""",
+}
 
 
+def generate_strategic_message(customer: dict, message_type: str,
+                                 memory_summary: str = "") -> str:
+    """Generate a strategy-aware AI followup message.
+
+    Args:
+        customer: Customer dict (name, phone, company, notes, etc.)
+        message_type: One of the STRATEGY_PROMPTS keys
+        memory_summary: Pre-fetched AI memory text for personalization
+
+    Returns the generated message string.
+    """
+    from country_utils import get_country_from_phone, get_power_context, GLOBAL_POWER_TRENDS
+
+    cfg = get_config()
+    phone = customer.get("phone", "")
+    country_info = get_country_from_phone(phone)
+    country_name = country_info.get("country_name", "")
+    power_context = get_power_context(country_name)
+    language = _country_to_language(country_name)
+
+    # Build language instruction
+    if language:
+        lang_instruction = f"You MUST write this message in {language}."
+    elif country_name:
+        lang_instruction = f"Write this message in the most common business language for {country_name}."
+    else:
+        lang_instruction = "Write this message in English."
+
+    # Get the strategy prompt template
+    prompt_template = STRATEGY_PROMPTS.get(message_type, STRATEGY_PROMPTS["casual_checkin"])
+
+    # Build system prompt
+    system_prompt = prompt_template.format(
+        lang_instruction=lang_instruction,
+        owner_name=cfg.business.owner_name,
+    )
+
+    # Build user message with customer context
+    user_parts = [
+        f"Customer: {customer.get('name', 'Valued Customer')}",
+        f"Company: {customer.get('company', 'N/A')}",
+    ]
+    if country_name:
+        country_hint = f"Location: {country_name}."
+        if power_context:
+            country_hint += f" Power context: {power_context}"
+        else:
+            country_hint += f" Industry context: {GLOBAL_POWER_TRENDS}"
+        user_parts.append(country_hint)
+    if memory_summary:
+        user_parts.append(f"Customer memory:\n{memory_summary}")
+    if customer.get("notes") and customer["notes"] != "N/A":
+        user_parts.append(f"Notes: {customer['notes']}")
+
+    user_message = "\n".join(user_parts)
+
+    try:
+        client = _get_client()
+        resp = client.chat.completions.create(
+            model=cfg.ai.model,
+            max_tokens=400,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+        )
+        return _clean_reply(resp.choices[0].message.content)
+    except Exception as e:
+        logger.error(f"Strategic message failed (type={message_type}): {e}")
+        # Fallback to standard followup
+        return generate_followup(customer)

@@ -82,6 +82,44 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+
+-- Agent tables: state persistence, lead scoring, decision log, AI memory
+CREATE TABLE IF NOT EXISTS bot_state (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS lead_scores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL UNIQUE REFERENCES customers(id),
+    score INTEGER NOT NULL DEFAULT 0,
+    segment TEXT NOT NULL DEFAULT 'new' CHECK(segment IN ('hot','warm','cold','new','dormant')),
+    signals TEXT DEFAULT '{}',
+    last_scored_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_lead_scores_segment ON lead_scores(segment);
+CREATE INDEX IF NOT EXISTS idx_lead_scores_score ON lead_scores(score DESC);
+CREATE TABLE IF NOT EXISTS agent_decisions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER REFERENCES customers(id),
+    decision_type TEXT NOT NULL,
+    reasoning TEXT,
+    context TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_agent_decisions_customer ON agent_decisions(customer_id, created_at);
+CREATE TABLE IF NOT EXISTS ai_memory_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL REFERENCES customers(id),
+    entry_type TEXT NOT NULL DEFAULT 'summary',
+    content TEXT NOT NULL,
+    importance INTEGER DEFAULT 1,
+    conversation_id INTEGER REFERENCES conversations(id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_memory_customer ON ai_memory_entries(customer_id, created_at);
 """
 
 
@@ -235,3 +273,153 @@ def record_followup(customer_id: int, schedule_id: int, conversation_id: Optiona
             (customer_id, schedule_id, conversation_id, status, error_message, now))
         conn.commit()
     return cur.lastrowid
+
+
+# ── Bot State (persistent KV store) ──────────────────────────────────────────────
+
+def get_bot_state(key: str) -> Optional[str]:
+    conn = get_connection()
+    row = conn.execute("SELECT value FROM bot_state WHERE key=?", (key,)).fetchone()
+    return row["value"] if row else None
+
+
+def set_bot_state(key: str, value: str):
+    conn = get_connection()
+    with _write_lock:
+        conn.execute(
+            "INSERT INTO bot_state(key, value, updated_at) VALUES(?,?,?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
+            (key, value, datetime.now().isoformat()))
+        conn.commit()
+
+
+# ── Lead Scores ──────────────────────────────────────────────────────────────────
+
+def upsert_lead_score(customer_id: int, score: int, segment: str, signals: str = "{}"):
+    conn = get_connection()
+    now = datetime.now().isoformat()
+    with _write_lock:
+        conn.execute(
+            "INSERT INTO lead_scores(customer_id, score, segment, signals, last_scored_at, updated_at) "
+            "VALUES(?,?,?,?,?,?) ON CONFLICT(customer_id) DO UPDATE SET "
+            "score=excluded.score, segment=excluded.segment, signals=excluded.signals, "
+            "last_scored_at=excluded.last_scored_at, updated_at=excluded.updated_at",
+            (customer_id, score, segment, signals, now, now))
+        conn.commit()
+
+
+def get_lead_score(customer_id: int) -> Optional[dict]:
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM lead_scores WHERE customer_id=?", (customer_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def get_top_leads(segment: Optional[str] = None, limit: int = 50) -> list[dict]:
+    conn = get_connection()
+    if segment:
+        rows = conn.execute(
+            "SELECT ls.*, c.name, c.phone, c.company FROM lead_scores ls "
+            "JOIN customers c ON ls.customer_id=c.id "
+            "WHERE ls.segment=? ORDER BY ls.score DESC LIMIT ?",
+            (segment, limit)).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT ls.*, c.name, c.phone, c.company FROM lead_scores ls "
+            "JOIN customers c ON ls.customer_id=c.id "
+            "ORDER BY ls.score DESC LIMIT ?", (limit,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_customers_by_segment(segment: str) -> list[dict]:
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT ls.*, c.name, c.phone, c.company, c.notes FROM lead_scores ls "
+        "JOIN customers c ON ls.customer_id=c.id "
+        "WHERE ls.segment=? ORDER BY ls.score DESC", (segment,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_all_lead_scores() -> list[dict]:
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT ls.*, c.name, c.phone, c.company FROM lead_scores ls "
+        "JOIN customers c ON ls.customer_id=c.id ORDER BY ls.score DESC").fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_segment_counts() -> dict:
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT segment, COUNT(*) as cnt FROM lead_scores GROUP BY segment").fetchall()
+    return {r["segment"]: r["cnt"] for r in rows}
+
+
+# ── Agent Decision Log ───────────────────────────────────────────────────────────
+
+def log_agent_decision(customer_id: int, decision_type: str, reasoning: str = "",
+                       context: str = "{}"):
+    conn = get_connection()
+    with _write_lock:
+        conn.execute(
+            "INSERT INTO agent_decisions(customer_id, decision_type, reasoning, context) "
+            "VALUES(?,?,?,?)", (customer_id, decision_type, reasoning, context))
+        conn.commit()
+
+
+def get_recent_decisions(limit: int = 50) -> list[dict]:
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT ad.*, c.name, c.phone FROM agent_decisions ad "
+        "LEFT JOIN customers c ON ad.customer_id=c.id "
+        "ORDER BY ad.created_at DESC LIMIT ?", (limit,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_customer_decisions(customer_id: int, limit: int = 20) -> list[dict]:
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM agent_decisions WHERE customer_id=? "
+        "ORDER BY created_at DESC LIMIT ?", (customer_id, limit)).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ── AI Memory ────────────────────────────────────────────────────────────────────
+
+def add_memory_entry(customer_id: int, entry_type: str, content: str,
+                     importance: int = 1, conversation_id: Optional[int] = None) -> int:
+    conn = get_connection()
+    with _write_lock:
+        cur = conn.execute(
+            "INSERT INTO ai_memory_entries(customer_id, entry_type, content, importance, "
+            "conversation_id) VALUES(?,?,?,?,?)",
+            (customer_id, entry_type, content, importance, conversation_id))
+        conn.commit()
+    return cur.lastrowid
+
+
+def get_customer_memory(customer_id: int, limit: int = 10,
+                        entry_type: Optional[str] = None) -> list[dict]:
+    conn = get_connection()
+    if entry_type:
+        rows = conn.execute(
+            "SELECT * FROM ai_memory_entries WHERE customer_id=? AND entry_type=? "
+            "ORDER BY importance DESC, created_at DESC LIMIT ?",
+            (customer_id, entry_type, limit)).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM ai_memory_entries WHERE customer_id=? "
+            "ORDER BY importance DESC, created_at DESC LIMIT ?",
+            (customer_id, limit)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_memory_summary(customer_id: int, max_entries: int = 5) -> str:
+    """Return a condensed text summary of customer memory for prompt injection."""
+    entries = get_customer_memory(customer_id, limit=max_entries)
+    if not entries:
+        return ""
+    lines = []
+    for e in entries:
+        tag = {"summary": "📝", "intent": "🎯", "preference": "⭐", "objection": "⚠️"}.get(e["entry_type"], "•")
+        lines.append(f"{tag} {e['content']}")
+    return "\n".join(lines)

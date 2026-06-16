@@ -1027,7 +1027,7 @@ async def upload_product_docs(files: list[UploadFile] = File(...)):
 
             cur = conn.execute(
                 "INSERT INTO product_docs(title, content) VALUES(?,?)",
-                (title, content[:50000]))
+                (title, content[:200000]))
             conn.commit()
             imported.append({"id": cur.lastrowid, "title": title})
         except Exception as e:
@@ -1153,6 +1153,112 @@ async def _get_bridge_status() -> dict:
             }
     except Exception as e:
         return {"online": False, "authenticated": False, "phone": None, "error": str(e)}
+
+
+# ── Agent Monitoring ──────────────────────────────────────────────────────────
+
+@router.get("/agent/status")
+async def agent_status():
+    """Get agent activity summary: decisions, segment distribution, scores."""
+    conn = get_connection()
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    # Segment distribution
+    segments = conn.execute(
+        "SELECT segment, COUNT(*) as cnt FROM lead_scores GROUP BY segment"
+    ).fetchall()
+    segment_counts = {r["segment"]: r["cnt"] for r in segments}
+    total_scored = sum(segment_counts.values())
+
+    # Today's decisions
+    today_decisions = conn.execute(
+        "SELECT COUNT(*) as cnt FROM agent_decisions WHERE date(created_at)=?",
+        (today,)
+    ).fetchone()["cnt"]
+
+    # Recent decisions (last 20)
+    recent = conn.execute(
+        "SELECT ad.*, c.name, c.phone FROM agent_decisions ad "
+        "LEFT JOIN customers c ON ad.customer_id = c.id "
+        "ORDER BY ad.created_at DESC LIMIT 20"
+    ).fetchall()
+
+    # Top hot leads
+    hot_leads = conn.execute(
+        "SELECT ls.*, c.name, c.phone, c.company FROM lead_scores ls "
+        "JOIN customers c ON ls.customer_id = c.id "
+        "WHERE ls.segment = 'hot' ORDER BY ls.score DESC LIMIT 10"
+    ).fetchall()
+
+    # Memory entries count
+    memory_count = conn.execute(
+        "SELECT COUNT(*) as cnt FROM ai_memory_entries"
+    ).fetchone()["cnt"]
+
+    return {
+        "total_scored": total_scored,
+        "segment_counts": segment_counts,
+        "today_decisions": today_decisions,
+        "total_memories": memory_count,
+        "hot_leads": [{"id": r["customer_id"], "name": r["name"],
+                        "phone": r["phone"], "score": r["score"],
+                        "signals": r["signals"]} for r in hot_leads],
+        "recent_decisions": [
+            {"id": r["id"], "customer_id": r["customer_id"],
+             "customer_name": r["name"], "decision_type": r["decision_type"],
+             "reasoning": r["reasoning"], "created_at": r["created_at"]}
+            for r in recent
+        ],
+    }
+
+
+@router.get("/agent/decisions")
+async def agent_decisions(limit: int = Query(50, ge=10, le=200)):
+    """Get recent agent decision logs."""
+    from database import get_recent_decisions
+    return {"decisions": get_recent_decisions(limit)}
+
+
+@router.get("/agent/customer-analysis/{customer_id}")
+async def agent_customer_analysis(customer_id: int):
+    """Full analysis for a single customer: score, segment, intents, memory."""
+    from scoring_engine import score_customer
+    from intent_analyzer import analyze_conversation_intent
+    from database import get_customer_memory, get_customer_decisions
+
+    score_data = score_customer(customer_id)
+    intent_data = analyze_conversation_intent(customer_id)
+    memory = get_customer_memory(customer_id, limit=10)
+    decisions = get_customer_decisions(customer_id, limit=20)
+
+    # Customer info
+    customer = get_connection().execute(
+        "SELECT * FROM customers WHERE id=?", (customer_id,)
+    ).fetchone()
+
+    return {
+        "customer": dict(customer) if customer else None,
+        "score": score_data,
+        "intent": intent_data,
+        "memory": [dict(m) for m in memory],
+        "decisions": [dict(d) for d in decisions],
+    }
+
+
+@router.post("/agent/run-scoring")
+async def trigger_scoring():
+    """Manually trigger a full re-scoring of all customers."""
+    from scoring_engine import score_all_customers
+    result = score_all_customers()
+    return {"ok": True, "result": result}
+
+
+@router.post("/agent/run-strategy-eval")
+async def trigger_strategy_eval():
+    """Manually trigger strategy evaluation for all customers."""
+    from strategy_manager import evaluate_all_strategies
+    result = evaluate_all_strategies()
+    return {"ok": True, "result": result}
 
 
 # ── Activity Log ───────────────────────────────────────────────────────────────
