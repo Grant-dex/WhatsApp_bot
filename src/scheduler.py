@@ -70,11 +70,39 @@ async def check_followups():
                 break
             customer = target
             # ── Build strategy context for personalized messaging ──
-            from database import get_memory_summary
+            from database import get_memory_summary, get_connection as _get_conn
+            from country_utils import get_country_from_phone
+
+            # Determine country for context
+            phone = customer.get("phone", "")
+            country_name = ""
+            try:
+                ci = get_country_from_phone(phone)
+                country_name = ci.get("country_name", "")
+            except Exception:
+                pass
+
+            # Check if customer has recent activity
+            conn2 = _get_conn()
+            last_msg = conn2.execute(
+                "SELECT MAX(sent_at) FROM conversations WHERE customer_id=?",
+                (customer["customer_id"],)
+            ).fetchone()
+            has_recent = False
+            if last_msg and last_msg[0]:
+                try:
+                    from datetime import datetime as dt, timedelta
+                    days_since = (dt.now() - dt.fromisoformat(last_msg[0])).days
+                    has_recent = days_since <= 14
+                except Exception:
+                    pass
+
             strategy_ctx = {
                 "message_type": target.get("strategy", "casual_checkin"),
                 "segment": target.get("segment", "new"),
                 "memory_summary": get_memory_summary(target["customer_id"]),
+                "country": country_name,
+                "has_recent_activity": has_recent,
             }
             message = generate_followup_message(customer, strategy_context=strategy_ctx)
             result = await send_message(customer["phone"], message)
@@ -179,11 +207,36 @@ async def auto_batch_push():
             if is_quiet_hours():
                 break
             customer = target
-            from database import get_memory_summary
+            from database import get_memory_summary, get_connection as _get_conn2
+            from country_utils import get_country_from_phone
+
+            phone = customer.get("phone", "")
+            country_name = ""
+            try:
+                ci = get_country_from_phone(phone)
+                country_name = ci.get("country_name", "")
+            except Exception:
+                pass
+
+            conn3 = _get_conn2()
+            last_msg = conn3.execute(
+                "SELECT MAX(sent_at) FROM conversations WHERE customer_id=?",
+                (customer["customer_id"],)
+            ).fetchone()
+            has_recent = False
+            if last_msg and last_msg[0]:
+                try:
+                    days_since = (datetime.now() - datetime.fromisoformat(last_msg[0])).days
+                    has_recent = days_since <= 14
+                except Exception:
+                    pass
+
             strategy_ctx = {
                 "message_type": target.get("strategy", "casual_checkin"),
                 "segment": target.get("segment", "new"),
                 "memory_summary": get_memory_summary(target["customer_id"]),
+                "country": country_name,
+                "has_recent_activity": has_recent,
             }
             message = generate_followup_message(customer, strategy_context=strategy_ctx)
             result = await send_message(customer["phone"], message)

@@ -3,6 +3,7 @@ import random
 from typing import Optional
 
 from ai_reply import generate_followup, generate_strategic_message
+from message_reviewer import review_and_refine
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +20,11 @@ def generate_followup_message(customer: dict,
                            'reactivation'
             - segment: 'hot', 'warm', 'cold', 'dormant', 'new'
             - memory_summary: pre-fetched memory string for prompt injection
+            - country: customer's country for context
+            - has_recent_activity: whether customer has been active recently
 
     If strategy_context is provided, uses the AI strategy-aware message generator.
+    Then runs through the checker sub-agent (maker/checker pattern).
     Otherwise falls back to the standard followup generation.
     """
     template = customer.get("template")
@@ -35,7 +39,20 @@ def generate_followup_message(customer: dict,
     if strategy_context:
         message_type = strategy_context.get("message_type", "casual_checkin")
         memory_summary = strategy_context.get("memory_summary", "")
-        return generate_strategic_message(customer, message_type, memory_summary)
+        country = strategy_context.get("country", "")
+
+        # Step 1: Maker — AI generates the message
+        message = generate_strategic_message(customer, message_type, memory_summary)
+
+        # Step 2: Checker — sub-agent reviews with clean context
+        has_recent = strategy_context.get("has_recent_activity", False)
+        message = review_and_refine(
+            message, customer, message_type,
+            country=country,
+            memory_summary=memory_summary,
+        )
+
+        return message
 
     return generate_followup(customer)
 
