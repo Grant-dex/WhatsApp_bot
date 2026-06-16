@@ -7,12 +7,27 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from bridge_client import send_message
 from config import get_config
-from database import get_customers_due_for_followup, record_followup, save_message, update_followup_schedule
+from database import get_connection, get_customers_due_for_followup, record_followup, save_message, update_followup_schedule
 from followup import generate_followup_message, get_random_delay
 from bot_state import is_paused
 
 logger = logging.getLogger(__name__)
 _check_lock = threading.Lock()
+
+
+def _count_today_auto_sent() -> int:
+    """Return how many auto-generated messages were sent today."""
+    try:
+        conn = get_connection()
+        today = datetime.now().strftime("%Y-%m-%d")
+        row = conn.execute(
+            "SELECT COUNT(*) as cnt FROM conversations "
+            "WHERE ai_generated=1 AND direction='outbound' AND date(sent_at)=?",
+            (today,)
+        ).fetchone()
+        return row["cnt"] if row else 0
+    except Exception:
+        return 0
 
 
 def is_quiet_hours() -> bool:
@@ -31,11 +46,21 @@ async def check_followups():
             return
         if is_quiet_hours():
             return
+        cfg = get_config()
         candidates = get_customers_due_for_followup()
         if not candidates:
             return
+        daily_limit = cfg.business.max_auto_replies_per_day
+        already_sent = _count_today_auto_sent()
+        remaining = daily_limit - already_sent
+        if remaining <= 0:
+            logger.info(f"Follow-up check: daily limit reached ({already_sent}/{daily_limit})")
+            return
         sent = 0
         for customer in candidates:
+            if sent >= remaining:
+                logger.info(f"Follow-up check: daily limit hit ({already_sent + sent}/{daily_limit})")
+                break
             if is_quiet_hours():
                 break
             message = generate_followup_message(customer)
@@ -101,13 +126,23 @@ async def auto_batch_push():
         if is_quiet_hours():
             logger.info("Auto-batch skipped: quiet hours")
             return
+        cfg = get_config()
         candidates = get_customers_due_for_followup()
         if not candidates:
             logger.info("Auto-batch: no due followups")
             return
-        logger.info(f"Auto-batch: sending followups to {len(candidates)} customers")
+        daily_limit = cfg.business.max_auto_replies_per_day
+        already_sent = _count_today_auto_sent()
+        remaining = daily_limit - already_sent
+        if remaining <= 0:
+            logger.info(f"Auto-batch: daily limit reached ({already_sent}/{daily_limit})")
+            return
+        logger.info(f"Auto-batch: sending followups to up to {min(len(candidates), remaining)}/{len(candidates)} candidates (daily: {already_sent}/{daily_limit})")
         sent = 0
         for customer in candidates:
+            if sent >= remaining:
+                logger.info(f"Auto-batch: daily limit hit ({already_sent + sent}/{daily_limit})")
+                break
             if is_quiet_hours():
                 break
             message = generate_followup_message(customer)

@@ -71,6 +71,7 @@ class BusinessConfig(BaseModel):
     quiet_hours_start: int = 21
     quiet_hours_end: int = 8
     max_auto_replies_per_hour: int = 30
+    max_auto_replies_per_day: int = 40
     min_delay_between_messages_seconds: int = 60
 
 
