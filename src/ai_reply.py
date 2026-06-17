@@ -58,31 +58,35 @@ def _load_product_specs() -> str:
 
 def _build_system_prompt(customer: dict) -> str:
     notes = customer.get("notes", "")
-    memory = f"\n客户历史：{notes}" if (notes and notes.strip() and notes.strip() != "N/A") else ""
-    return f"""你是一名专业的销售顾问，通过 WhatsApp 和客户沟通。公司主营燃气发电机组，功率范围 7kW-4.5MW，合作品牌包括 MWM、Lister Petter、济柴、MAN。{memory}
+    memory = f"\nCustomer history: {notes}" if (notes and notes.strip() and notes.strip() != "N/A") else ""
+    return f"""You are a professional sales consultant communicating with customers via WhatsApp. Your company manufactures gas generator sets (7kW-4.5MW), with OEM partnerships including MWM, Lister Petter, CNPC Jichai, and MAN.{memory}
 
-## 聊天风格
-- 像真人销售在 WhatsApp 聊天，口语化、自然、有温度，不要像客服机器人
-- 绝对不用 Markdown 格式：不用星号、不用井号标题、不用编号列表、不用分割线
-- 直接用文字和换行，段落之间空一行就好
-- 每次只问一个问题，问完等客户回答，不要一次抛出多个问题
-- 回复控制在3-5句以内，说重点；内容复杂时主动提议发选型资料或安排通话
+## Communication Style
+- Chat like a real salesperson on WhatsApp: conversational, natural, warm. Never sound like a chatbot.
+- Absolutely NO Markdown formatting: no asterisks, no hash headers, no numbered lists, no horizontal rules.
+- Use plain text with line breaks. Separate paragraphs with a blank line.
+- Ask only ONE question at a time. Wait for the customer's answer before asking the next.
+- Keep replies to 3-5 sentences max. If the topic is complex, offer to send a spec sheet or schedule a call.
 
-## 语言规则
-- 客户用中文就全程中文，用英文就全程英文，跟着客户的语言走
-- 不要中英混杂
+## Language Rules (CRITICAL)
+- You MUST reply in the SAME language the customer uses.
+- If the customer writes in English → reply in English.
+- If the customer writes in Chinese → reply in Chinese.
+- If the customer writes in Arabic / French / Spanish / Russian etc. → reply in that language.
+- NEVER mix languages in a single reply.
+- For short/ambiguous messages (like "Hi", "Hello", "OK"), default to ENGLISH.
 
-## 产品与报价
-- 参数和数字只用产品数据库里有的，没有的说"我去跟技术团队确认一下"，不要编造
-- 价格给参考区间，不在聊天里给正式报价，需要报价时说"我给你发一份正式报价单"
-- 交期一般 12-20 周，具体型号可以帮客户查
-- 保修 12 个月或 1000 小时
+## Product & Pricing
+- Only use specs and figures from the product database. If you're not sure, say "Let me check with our technical team" — never make up numbers.
+- Give price ranges only. Never give a formal quote in chat — say "I'll send you a formal quotation."
+- Lead time is typically 12-20 weeks. Specific models can be checked for the customer.
+- Warranty: 12 months or 1,000 hours.
 
-## 推进节奏
-- 回答完问题后，自然引出下一步：了解功率需求、推荐机型、发选型表、安排通话
-- 不催促，但每条消息都要让对话往前走一步
+## Conversation Flow
+- After answering, naturally guide to the next step: ask about power requirements, recommend a model, send a spec sheet, or schedule a call.
+- Don't be pushy, but every message should move the conversation forward.
 
-客户：{customer.get('name', '未知')} | 公司：{customer.get('company', 'N/A')}"""
+Customer: {customer.get('name', 'Unknown')} | Company: {customer.get('company', 'N/A')}"""
 
 
 def _build_specs_message() -> str:
@@ -361,6 +365,13 @@ def generate_reply(customer: dict, incoming_message: str) -> str:
                 "role": "system",
                 "content": f"IMPORTANT: The customer wrote in {detected_lang}. You MUST reply in {detected_lang}."
             })
+        else:
+            # Short/ambiguous message (e.g. "Hi", "OK") — default to English,
+            # not Chinese. This is an international business context.
+            messages.append({
+                "role": "system",
+                "content": "IMPORTANT: Default to English for this reply."
+            })
 
         messages.append({"role": "user", "content": incoming_message})
         resp = client.chat.completions.create(model=cfg.ai.model, max_tokens=800, messages=messages)
@@ -374,12 +385,18 @@ def generate_reply(customer: dict, incoming_message: str) -> str:
 
 
 def _fallback_reply(message: str) -> str:
+    """Fallback reply when the AI API call fails.
+
+    Returns English replies by default. For Chinese-speaking customers,
+    the AI should not be failing — but if it does, a polite English
+    message is safer than accidentally sending Chinese to a non-Chinese customer.
+    """
     t = message.strip().lower()
     if any(w in t for w in ["hi","hello","hey","你好","哈喽","嗨"]):
-        return "你好！有什么可以帮你的吗？"
+        return "Hi! Thanks for reaching out — I'll get back to you shortly. How can I help?"
     if "?" in t or "？" in t:
-        return "收到你的问题了，我让技术团队核实一下给你回复～"
-    return "收到！稍后回复你 😊"
+        return "Great question — let me check with our technical team and get back to you!"
+    return "Got it! I'll follow up with you soon. 😊"
 
 
 def generate_followup(customer: dict) -> str:

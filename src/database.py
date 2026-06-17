@@ -63,6 +63,16 @@ CREATE TABLE IF NOT EXISTS product_docs (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS product_files (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_doc_id INTEGER REFERENCES product_docs(id) ON DELETE CASCADE,
+    filename TEXT NOT NULL,
+    mime_type TEXT NOT NULL DEFAULT 'application/pdf',
+    file_size INTEGER DEFAULT 0,
+    file_data BLOB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_product_files_doc ON product_files(product_doc_id);
 CREATE TABLE IF NOT EXISTS orders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     order_no TEXT NOT NULL UNIQUE,
@@ -423,3 +433,111 @@ def get_memory_summary(customer_id: int, max_entries: int = 5) -> str:
         tag = {"summary": "📝", "intent": "🎯", "preference": "⭐", "objection": "⚠️"}.get(e["entry_type"], "•")
         lines.append(f"{tag} {e['content']}")
     return "\n".join(lines)
+
+
+# ── Product Files (PDF/documents for sending via WhatsApp) ──────────────────────
+
+def save_product_file(product_doc_id: int, filename: str, mime_type: str,
+                       file_data: bytes, file_size: int = 0) -> int:
+    conn = get_connection()
+    with _write_lock:
+        cur = conn.execute(
+            "INSERT INTO product_files(product_doc_id, filename, mime_type, file_size, file_data) "
+            "VALUES(?,?,?,?,?)",
+            (product_doc_id, filename, mime_type, file_size or len(file_data), file_data))
+        conn.commit()
+    return cur.lastrowid
+
+
+def get_product_file(product_doc_id: int) -> Optional[dict]:
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM product_files WHERE product_doc_id=? ORDER BY id DESC LIMIT 1",
+        (product_doc_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def search_product_files(query: str, limit: int = 5) -> list[dict]:
+    """Search product_docs by title/content and return matching docs with file info."""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT pd.id, pd.title, pd.content, pf.filename, pf.mime_type, pf.file_size "
+        "FROM product_docs pd "
+        "LEFT JOIN product_files pf ON pd.id = pf.product_doc_id "
+        "WHERE pd.title LIKE ? OR pd.content LIKE ? "
+        "ORDER BY pd.id DESC LIMIT ?",
+        (f"%{query}%", f"%{query}%", limit)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def find_best_matching_document(customer_message: str) -> Optional[dict]:
+    """Use keyword matching to find the most relevant document for a customer request.
+
+    Returns the best-matching doc with file info, or None if no good match.
+    """
+    import re
+    # Extract key terms from the message
+    keywords = []
+    # Model numbers: MWM TCG3016, MAN 12M55, G3516H, etc.
+    model_patterns = [
+        r'(?:MWM\s*)?TCG\d+[A-Z]?\d*', r'(?:MAN\s*)?\d+[A-Z]\d+[A-Z]?',
+        r'G\d+[A-Z]\d*', r'L\d+[A-Z]\d+', r'TM\d+[A-Z]?\d*',
+        r'CG\d+[A-Z]?\d*', r'LP\d+[A-Z]\d+[A-Z]?',
+        r'\d+[A-Z]\d+[A-Z]?\d*',  # General model number pattern
+    ]
+    for pat in model_patterns:
+        matches = re.findall(pat, customer_message, re.IGNORECASE)
+        keywords.extend(matches)
+
+    # Power requirements
+    power_match = re.search(r'(\d+\.?\d*)\s*(?:MW|kW|kw|KW)', customer_message)
+    if power_match:
+        keywords.append(f"{power_match.group(1)}")
+
+    # Document type hints
+    doctype_map = {
+        'datasheet': ['datasheet', 'data sheet', 'spec', 'specification', '规格', '参数表'],
+        'manual': ['manual', 'operation', 'maintenance', 'manual', '说明书', '操作', '保养'],
+        'price': ['price', 'pricing', '报价', '价格', 'quote'],
+        'catalog': ['catalog', 'brochure', 'leaflet', '型谱', '目录', '样本'],
+        'questionnaire': ['questionnaire', 'survey', '调查表', '问卷'],
+        'profile': ['company', 'profile', '公司', '简介', 'about'],
+    }
+    for doctype, patterns in doctype_map.items():
+        if any(p.lower() in customer_message.lower() for p in patterns):
+            keywords.append(doctype)
+
+    if not keywords:
+        return None
+
+    # Search product_docs for matching keywords
+    conn = get_connection()
+    best_match = None
+    best_score = 0
+
+    for kw in keywords[:5]:  # Limit to top 5 keywords
+        rows = conn.execute(
+            "SELECT pd.id, pd.title, pd.content, pf.filename, pf.mime_type, "
+            "pf.file_size "
+            "FROM product_docs pd "
+            "LEFT JOIN product_files pf ON pd.id = pf.product_doc_id "
+            "WHERE pd.title LIKE ?",
+            (f"%{kw}%",)).fetchall()
+        for r in rows:
+            score = 0
+            title_lower = (r["title"] or "").lower()
+            # Exact model match is strongest signal
+            if kw.lower() in title_lower:
+                score += 10
+            # Prefer docs that have files attached
+            if r["filename"]:
+                score += 5
+            # Penalize non-English titles (less likely to be what customer wants)
+            if score > best_score:
+                best_score = score
+                best_match = r
+
+    if best_match and best_score >= 5:
+        return dict(best_match)
+    return None
+

@@ -1029,6 +1029,20 @@ async def upload_product_docs(files: list[UploadFile] = File(...)):
                 "INSERT INTO product_docs(title, content) VALUES(?,?)",
                 (title, content[:200000]))
             conn.commit()
+            # ── Store original binary for WhatsApp document sending ──
+            mime_map = {
+                "pdf": "application/pdf",
+                "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "xls": "application/vnd.ms-excel",
+                "csv": "text/csv",
+                "txt": "text/plain", "md": "text/markdown",
+                "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+                "gif": "image/gif", "bmp": "image/bmp", "webp": "image/webp",
+            }
+            mime_type = mime_map.get(ext, "application/octet-stream")
+            from database import save_product_file
+            save_product_file(cur.lastrowid, filename, mime_type, content_bytes)
             imported.append({"id": cur.lastrowid, "title": title})
         except Exception as e:
             failed.append({"filename": filename, "reason": f"解析失败: {str(e)}"})

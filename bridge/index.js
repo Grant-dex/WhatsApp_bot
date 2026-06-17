@@ -226,6 +226,54 @@ app.post('/send', async (req, res) => {
     }
 });
 
+// ── Document sending ──────────────────────────────────────
+app.post('/send-document', async (req, res) => {
+    if (!clientReady || !sock) return res.status(503).json({ status: 'failed', error: '桥接未认证，请先扫码登录 WhatsApp' });
+    let { phone, filename, mime_type, file_data_base64, caption } = req.body;
+    if (!phone || !filename || !file_data_base64) {
+        return res.status(400).json({ status: 'failed', error: '缺少必填字段：phone, filename, file_data_base64' });
+    }
+    // Same robust phone cleaning as /send
+    phone = phone.replace(/[​-‏ -‮⁠-⁩﻿￰-￿]/g, '');
+    phone = phone.replace(/^\++/, '').replace(/\++$/, '');
+    phone = phone.replace(/@lid$/, '').replace(/@c\.us$/, '').replace(/@s\.whatsapp\.net$/, '');
+    phone = phone.replace(/[\s\-\(\)]/g, '');
+    phone = phone.replace(/^[^\d]+/, '');
+    phone = phone.trim();
+    if (!phone) return res.status(400).json({ status: 'failed', error: '清理后电话号码为空' });
+    const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
+    let fileBuffer;
+    try {
+        fileBuffer = Buffer.from(file_data_base64, 'base64');
+    } catch (e) {
+        return res.status(400).json({ status: 'failed', error: '文件数据编码无效' });
+    }
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB WhatsApp limit
+    if (fileBuffer.length > MAX_FILE_SIZE) {
+        return res.status(400).json({ status: 'failed', error: `文件过大（${(fileBuffer.length/1024/1024).toFixed(1)}MB），超过50MB限制` });
+    }
+    console.log('[send-document] sending', filename, `(${(fileBuffer.length/1024).toFixed(1)}KB)`, 'to', jid);
+    try {
+        await Promise.race([
+            sock.sendMessage(jid, {
+                document: fileBuffer,
+                mimetype: mime_type || 'application/pdf',
+                fileName: filename
+            }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('send timeout')), 60000))
+        ]);
+        console.log('[send-document] done:', filename);
+        res.json({ status: 'sent' });
+    } catch (e) {
+        let errorMsg = e.message || 'unknown';
+        if (errorMsg === 'send timeout') {
+            errorMsg = '文件发送超时（60秒）。文件可能过大或网络不稳定，请稍后重试。';
+        }
+        console.error('[send-document] failed:', errorMsg);
+        res.json({ status: 'failed', error: errorMsg });
+    }
+});
+
 ['SIGINT', 'SIGTERM'].forEach(s => process.on(s, () => { isShutdown = true; resetBackoff(); if (sock) sock.end(undefined); process.exit(0); }));
 
 async function loadBaileys() {

@@ -8,6 +8,7 @@ business:
   quiet_hours_start: 21
   quiet_hours_end: 8
   max_auto_replies_per_hour: 30
+  max_auto_replies_per_day: 40
   min_delay_between_messages_seconds: 60
 
 ai:

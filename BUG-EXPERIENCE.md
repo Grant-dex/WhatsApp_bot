@@ -19,6 +19,15 @@
 
 ## Python 后端 & AI
 
+**【坑】AI 对非中文客户回复中文 — System Prompt 语言污染**
+→ 现象：机器人用中文回复只说 "Hi"、"OK" 的客户（以及偶尔对正常英文对话突然切中文）
+→ 根因：三重中文倾向叠加：
+  1. `_build_system_prompt()` 整个 system prompt 是中文写的 → DeepSeek 看到中文 prompt 偏向中文输出
+  2. 客户消息太短（"Hi"、"Thanks"）时 `_detect_message_language()` 返回空字符串 → 不加语言指令 → AI 自由发挥回中文
+  3. API 调用失败时 `_fallback_reply()` 三句兜底全硬编码中文（"你好！有什么可以帮你的吗？" 等）
+→ 正确做法：(1) System prompt 改英文 (2) `detected_lang` 为空时显式注入 "Default to English" (3) Fallback 回复英文化
+> ⚡ 直觉会以为只要 prompt 里写一句"跟着客户语言走"就够了，但 LLM 的语言偏向主要由 system prompt 的语言决定，不是由 instruction 内容决定。短消息场景下这个偏向会被放大。
+
 **【坑】`send-now` 返回 500 Internal Server Error，但 `send-manual` 正常，backend.log 无任何错误**
 → 根因：PyInstaller 未打包 `country_utils.py`（且其依赖 `phonenumbers` 库也未打包）→ `from country_utils import ...` ModuleNotFoundError → 未捕获异常 → 500
 → 正确做法：(1) 重写模块去掉第三方依赖 (2) 手动 cp + `zip base_library.zip` 同步进 app (3) spec 的 `hiddenimports` 加 `'country_utils'`
