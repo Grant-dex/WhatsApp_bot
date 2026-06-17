@@ -85,7 +85,7 @@ DeepSeek 看到全中文 system prompt 会偏向中文输出。即使 prompt 中
 | 项目 | 值 |
 |------|-----|
 | 仓库 | `https://github.com/Grant-dex/WhatsApp_bot` |
-| 最新 commit | `0fc2fc7` — feat: 客户编辑时智能合并重复号码 + 前端错误提示优化 |
+| 最新 commit | `b0c9196` — fix: 根治 AI 中文回复问题 — system prompt 英文化 + 短消息兜底 + fallback 英文化 |
 | 分支 | `main` |
 
 ## 最近重要修改（2026-06-10）
