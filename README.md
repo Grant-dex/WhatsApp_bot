@@ -20,6 +20,31 @@ cd ~/Desktop/ai应用工程师项目/WhatsApp_bot-web
 
 默认数据目录是项目下的 `data/`；`run_web.sh` 会自动创建 `config.yaml` 副本和 SQLite 数据库。API Key 写入 `data/.env` 或通过首次配置页保存。
 
+## 账号与多租户
+
+首次打开控制台会跳转到登录页，第一个创建的账号是**管理员**，它会接管已有的 `data/` 目录；之后每个新注册的用户都会拿到一套独立的数据空间。
+
+```
+data/
+├── accounts.db              # 全局账号库（用户、会话）
+├── data/customers.db        # 首个账号（管理员）的数据
+├── logs/
+└── tenants/
+    └── <user_id>/           # 每个新用户一套，互不可见
+        ├── config.yaml
+        ├── .env             # 该用户自己的 LLM_API_KEY
+        ├── logs/
+        └── data/customers.db
+```
+
+隔离方式：登录后中间件把租户写进 `contextvar`，`get_config()` 与 `get_connection()` 自动落到该租户目录——不同用户之间既不共享 SQLite 连接，也不共享配置对象。
+
+| 环境变量 | 说明 |
+|---|---|
+| `WA_ALLOW_SIGNUP=0` | 关闭自助注册，只保留管理员账号 |
+
+账号体系相关代码：`src/auth.py`（登录/中间件）、`src/accounts.py`（用户与会话）、`src/tenancy.py`（租户上下文）。
+
 ## 连接 WhatsApp（可选）
 
 网页控制台本身不依赖 Electron。需要收发 WhatsApp 时：

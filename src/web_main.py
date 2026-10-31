@@ -155,6 +155,14 @@ def main(argv=None) -> int:
     get_connection()
     logger.info("Database ready: %s", cfg.database.path)
 
+    # 账号库（全局，和租户目录并列）
+    import accounts as _accounts
+    _accounts.get_conn()
+    if _accounts.count_users() == 0:
+        logger.info("尚未创建账号：打开 %s/login 初始化管理员账号", f"http://127.0.0.1:{args.port}")
+    else:
+        logger.info("已注册用户: %d", _accounts.count_users())
+
     # Config is loaded, so api_server's auto-init (which swallows errors) stays off.
     from api_server import app, set_message_handler
     from message_router import handle_incoming_message

@@ -67,6 +67,18 @@ app = FastAPI(title="WhatsApp Bot Internal API", lifespan=_lifespan)
 # Expose application assets only, never design references or data directories.
 app.mount("/assets", StaticFiles(directory=Path(__file__).resolve().parent / "static" / "assets"), name="admin-assets")
 
+# ── 多租户认证 ──────────────────────────────────────────────────────────
+# 必须在应用启动前挂载：中间件按 cookie 解析 session，并把租户写进
+# contextvar，后续 get_config()/get_connection() 自动落到租户目录。
+import accounts as _accounts
+import auth as _auth
+
+try:
+    _accounts.get_conn()
+except Exception as _e:  # 账号库不可用时不阻塞启动，但会打日志
+    logger.error("账号库初始化失败: %s", _e)
+_auth.install(app)
+
 
 class IncomingMessage(BaseModel):
     from_: str = Field(alias="from")

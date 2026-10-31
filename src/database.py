@@ -9,7 +9,8 @@ from typing import Optional
 from config import get_config
 
 _write_lock = threading.Lock()
-_conn: Optional[sqlite3.Connection] = None
+# 每个租户一个数据库文件，连接按路径缓存
+_conns: dict[str, sqlite3.Connection] = {}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS customers (
@@ -272,32 +273,37 @@ def _reset_stale_quota_reservations(conn: sqlite3.Connection) -> None:
 
 
 def get_connection() -> sqlite3.Connection:
-    global _conn
-    if _conn is None:
-        cfg = get_config()
-        db_path = Path(cfg.database.path)
+    """返回当前租户的连接（按数据库文件路径缓存）。"""
+    cfg = get_config()
+    db_path = Path(cfg.database.path).resolve()
+    key = str(db_path)
+    conn = _conns.get(key)
+    if conn is None:
         db_path.parent.mkdir(parents=True, exist_ok=True)
-        _conn = sqlite3.connect(str(db_path), check_same_thread=False)
-        _conn.row_factory = sqlite3.Row
-        _conn.execute("PRAGMA journal_mode=WAL;")
-        _conn.execute("PRAGMA foreign_keys=ON;")
-        _conn.executescript(SCHEMA)
-        _apply_migrations(_conn)
-        _reset_stale_quota_reservations(_conn)
+        conn = sqlite3.connect(str(db_path), check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA foreign_keys=ON;")
+        conn.executescript(SCHEMA)
+        _apply_migrations(conn)
+        _reset_stale_quota_reservations(conn)
         # Legacy one-off migrations retained for older databases.
-        try: _conn.execute("ALTER TABLE orders ADD COLUMN currency TEXT DEFAULT 'USD'")
+        try: conn.execute("ALTER TABLE orders ADD COLUMN currency TEXT DEFAULT 'USD'")
         except: pass
-        try: _conn.execute("ALTER TABLE customers ADD COLUMN email TEXT DEFAULT ''")
+        try: conn.execute("ALTER TABLE customers ADD COLUMN email TEXT DEFAULT ''")
         except: pass
-        _conn.commit()
-    return _conn
+        conn.commit()
+        _conns[key] = conn
+    return conn
 
 
 def close_db():
-    global _conn
-    if _conn:
-        _conn.close()
-        _conn = None
+    for conn in list(_conns.values()):
+        try:
+            conn.close()
+        except sqlite3.Error:
+            pass
+    _conns.clear()
 
 
 def get_or_create_customer(phone: str, name: Optional[str] = None) -> dict:

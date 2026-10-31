@@ -19,7 +19,17 @@ def get_bundle_dir() -> Path:
 
 
 def get_data_dir() -> Path:
-    """Return the data directory, either from env var or current working dir."""
+    """返回当前生效的数据目录。
+
+    在 HTTP 请求里由 ``tenancy`` 上下文决定（每个登录用户一份）；
+    没有租户上下文时（CLI、调度器、测试）退回环境变量 / 当前目录。
+    """
+    from tenancy import current_data_dir
+
+    tenant_dir = current_data_dir()
+    if tenant_dir is not None:
+        return tenant_dir
+
     data_dir = os.getenv("WHATSAPP_BOT_DATA_DIR", "")
     if data_dir:
         return Path(data_dir)
@@ -51,6 +61,15 @@ def load_dotenv(path: str = ".env") -> None:
 
 
 def get_api_key() -> str:
+    """API Key 解析顺序：租户自己的 .env → 进程环境变量。"""
+    from tenancy import current, load_tenant_env
+
+    tenant = current()
+    if tenant is not None:
+        tenant_key = (load_tenant_env(tenant.data_dir).get("LLM_API_KEY") or "").strip()
+        if tenant_key:
+            return tenant_key
+
     val = os.getenv("LLM_API_KEY", "").strip()
     if not val:
         raise RuntimeError(
@@ -147,6 +166,20 @@ class Config(BaseModel):
 
 
 _config: Optional[Config] = None
+_config_cache: dict[str, Config] = {}
+
+
+def _read_config_file(path: Path, tenant_env: Optional[dict] = None) -> Config:
+    with open(path) as f:
+        raw = yaml.safe_load(f) or {}
+    cfg = Config(**raw)
+    if tenant_env:
+        # 租户 .env 里的模型配置覆盖 yaml（不写 os.environ，避免跨租户串味）
+        if tenant_env.get("LLM_BASE_URL"):
+            cfg.ai.base_url = tenant_env["LLM_BASE_URL"]
+        if tenant_env.get("LLM_MODEL"):
+            cfg.ai.model = tenant_env["LLM_MODEL"]
+    return cfg
 
 
 def load_config(config_path: str = "config.yaml") -> Config:
@@ -159,13 +192,37 @@ def load_config(config_path: str = "config.yaml") -> Config:
             path = data_config
     if not path.exists():
         raise FileNotFoundError(f"Config file not found: {config_path}")
-    with open(path) as f:
-        raw = yaml.safe_load(f)
-    _config = Config(**raw)
+    _config = _read_config_file(path)
+    _config_cache[str(path.resolve())] = _config
     return _config
 
 
 def get_config() -> Config:
+    """当前租户的配置；没有租户上下文时返回全局配置。"""
+    from tenancy import current, load_tenant_env, reset_current, set_current
+
+    tenant = current()
+    if tenant is not None:
+        key = str(tenant.config_path.resolve())
+        cfg = _config_cache.get(key)
+        if cfg is not None:
+            return cfg
+
+        if tenant.config_path.exists():
+            # 在租户上下文里构造，确保相对路径解析到租户目录
+            token = set_current(tenant)
+            try:
+                cfg = _read_config_file(
+                    tenant.config_path, load_tenant_env(tenant.data_dir))
+            finally:
+                reset_current(token)
+            _config_cache[key] = cfg
+            return cfg
+
+        if _config is None:
+            raise RuntimeError("Config not loaded. Call load_config() first.")
+        return _config
+
     if _config is None:
         raise RuntimeError("Config not loaded. Call load_config() first.")
     return _config

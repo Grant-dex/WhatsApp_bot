@@ -33,6 +33,10 @@ from fastapi.testclient import TestClient
 import api_server
 
 client = TestClient(api_server.app)
+# 多租户改造后，控制台需要登录；首次访问用 bootstrap 建管理员。
+_boot = client.post("/api/auth/bootstrap",
+                    json={"email": "probe@example.com", "password": "probepassword"})
+assert _boot.status_code == 200, _boot.text
 out = {}
 for path in ("/health", "/", "/admin/api/dashboard", "/admin/api/activity?lines=10", "/assets/common.js", "/assets/workspace.css", "/design-reference/dashboard-preview.html"):
     response = client.get(path)

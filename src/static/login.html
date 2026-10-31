@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>登录 · WhatsApp-bot</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%23142326'/%3E%3Cpath d='M13 3L5 14h6l-1 7 9-12h-6l1-6z' fill='%230FA3A6'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --ink:#142326; --teal:#0FA3A6; --teal-d:#0c8b8e;
+    --bg:#F4F7F8; --card:#fff; --line:#E3EBED;
+    --text2:#5C7379; --danger:#C0392B;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;
+    display:flex;align-items:center;justify-content:center;padding:24px;
+  }
+  .shell{
+    width:100%;max-width:920px;display:grid;grid-template-columns:1fr 1fr;
+    background:var(--card);border-radius:20px;overflow:hidden;
+    box-shadow:0 24px 60px rgba(20,35,38,.10),0 2px 8px rgba(20,35,38,.04);
+    min-height:540px;
+  }
+  .brand{
+    background:radial-gradient(120% 120% at 0% 0%,#1b393d 0%,#142326 55%,#0e191b 100%);
+    color:#fff;padding:44px 40px;display:flex;flex-direction:column;justify-content:space-between;
+    position:relative;overflow:hidden;
+  }
+  .brand::after{
+    content:"";position:absolute;right:-80px;bottom:-80px;width:260px;height:260px;
+    border-radius:50%;background:radial-gradient(circle,rgba(15,163,166,.35),transparent 70%);
+  }
+  .logo{display:flex;align-items:center;gap:12px}
+  .logo-mark{
+    width:38px;height:38px;border-radius:11px;background:rgba(15,163,166,.16);
+    display:grid;place-items:center;color:var(--teal);
+  }
+  .logo-text b{display:block;font-size:16px;letter-spacing:.2px}
+  .logo-text span{display:block;font-size:10px;letter-spacing:2.4px;color:rgba(255,255,255,.45);margin-top:3px}
+  .brand h1{font-size:26px;line-height:1.35;font-weight:600;margin:0 0 14px;letter-spacing:-.4px;position:relative;z-index:1}
+  .brand p{font-size:13px;line-height:1.8;color:rgba(255,255,255,.55);margin:0;position:relative;z-index:1}
+  .brand ul{list-style:none;padding:0;margin:26px 0 0;position:relative;z-index:1}
+  .brand li{font-size:13px;color:rgba(255,255,255,.72);display:flex;gap:10px;align-items:center;margin-bottom:12px}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--teal);flex:none}
+  .brand-foot{font-size:11px;color:rgba(255,255,255,.32);position:relative;z-index:1}
+
+  .panel{padding:44px 40px;display:flex;flex-direction:column;justify-content:center}
+  .tabs{display:flex;gap:22px;margin-bottom:26px;border-bottom:1px solid var(--line)}
+  .tab{
+    appearance:none;background:none;border:0;padding:0 0 12px;font-size:14px;font-weight:600;
+    color:#9BAEB3;cursor:pointer;position:relative;font-family:inherit;
+  }
+  .tab.on{color:var(--ink)}
+  .tab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--teal);border-radius:2px}
+  .field{margin-bottom:16px}
+  .field label{display:block;font-size:12px;color:var(--text2);margin-bottom:7px;font-weight:500}
+  .field input{
+    width:100%;height:46px;border:1px solid var(--line);border-radius:11px;padding:0 14px;
+    font-size:14px;font-family:inherit;color:var(--ink);background:#FBFDFD;outline:none;
+    transition:border-color .15s,box-shadow .15s;
+  }
+  .field input:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(15,163,166,.12);background:#fff}
+  .hint{font-size:12px;color:#9BAEB3;margin-top:6px;line-height:1.6}
+  .btn{
+    width:100%;height:46px;border:0;border-radius:11px;background:var(--teal);color:#fff;
+    font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;margin-top:6px;
+    transition:background .15s,transform .05s;
+  }
+  .btn:hover{background:var(--teal-d)}
+  .btn:active{transform:translateY(1px)}
+  .btn[disabled]{opacity:.6;cursor:default}
+  .err{
+    display:none;font-size:13px;color:var(--danger);background:#FDF1EF;border:1px solid #F6D9D3;
+    border-radius:9px;padding:10px 12px;margin-bottom:16px;line-height:1.5;
+  }
+  .err.show{display:block}
+  .foot{font-size:11px;color:#A9B9BD;text-align:center;margin-top:22px;line-height:1.7}
+  .mobile-brand{display:none}
+  @media(max-width:760px){
+    body{padding:0;align-items:stretch}
+    .shell{grid-template-columns:1fr;max-width:none;border-radius:0;min-height:100vh;box-shadow:none}
+    .brand{display:none}
+    .panel{padding:56px 26px 40px;justify-content:flex-start}
+    .mobile-brand{
+      display:flex;align-items:center;gap:9px;margin-bottom:32px;
+      font-size:15px;font-weight:700;letter-spacing:.2px;
+    }
+    .mobile-brand .mark{
+      width:30px;height:30px;border-radius:9px;background:#142326;
+      display:grid;place-items:center;color:var(--teal);
+    }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="brand">
+    <div>
+      <div class="logo">
+        <div class="logo-mark">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        </div>
+        <div class="logo-text"><b>WhatsApp-bot</b><span>SALES WORKSPACE</span></div>
+      </div>
+      <h1 style="margin-top:44px">你的客户，<br>只属于你的工作台。</h1>
+      <p>每个账号拥有独立的数据空间：客户、对话、订单、跟进计划互不可见。</p>
+      <ul>
+        <li><i class="dot"></i>独立 SQLite 数据库</li>
+        <li><i class="dot"></i>独立 WhatsApp 会话</li>
+        <li><i class="dot"></i>独立 AI Key 与业务配置</li>
+      </ul>
+    </div>
+    <div class="brand-foot">© 2026 WhatsApp-bot</div>
+  </aside>
+
+  <main class="panel">
+    <div class="mobile-brand">
+      <span class="mark">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      </span>
+      WhatsApp-bot
+    </div>
+    <div class="tabs">
+      <button class="tab on" id="tab-login" type="button">登录</button>
+      <button class="tab" id="tab-register" type="button">创建账号</button>
+    </div>
+
+    <div class="err" id="err"></div>
+
+    <form id="form" autocomplete="on">
+      <div class="field">
+        <label for="email">邮箱</label>
+        <input id="email" type="email" name="email" autocomplete="username" placeholder="you@example.com" required>
+      </div>
+      <div class="field">
+        <label for="password">密码</label>
+        <input id="password" type="password" name="password" autocomplete="current-password" placeholder="至少 8 位" required>
+      </div>
+      <div class="field" id="confirm-wrap" style="display:none">
+        <label for="confirm">确认密码</label>
+        <input id="confirm" type="password" autocomplete="new-password" placeholder="再输一次">
+      </div>
+      <button class="btn" id="submit" type="submit">登录</button>
+    </form>
+
+    <div class="hint" id="mode-hint" style="display:none"></div>
+    <div class="foot">登录即表示你同意服务条款与隐私政策</div>
+  </main>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const err = $('err'), form = $('form'), submit = $('submit');
+  const tabLogin = $('tab-login'), tabReg = $('tab-register');
+  const confirmWrap = $('confirm-wrap'), hint = $('mode-hint');
+
+  let mode = 'login';          // login | register | bootstrap
+  let next = new URLSearchParams(location.search).get('next') || '/';
+
+  function showError(msg) {
+    err.textContent = msg;
+    err.classList.add('show');
+  }
+  function clearError() { err.classList.remove('show'); }
+
+  function render() {
+    const isLogin = mode === 'login';
+    tabLogin.classList.toggle('on', isLogin);
+    tabReg.classList.toggle('on', !isLogin);
+    confirmWrap.style.display = isLogin ? 'none' : 'block';
+    submit.textContent = isLogin ? '登录'
+      : (mode === 'bootstrap' ? '创建管理员账号' : '创建账号');
+    $('password').setAttribute('autocomplete', isLogin ? 'current-password' : 'new-password');
+    hint.style.display = mode === 'bootstrap' ? 'block' : 'none';
+    if (mode === 'bootstrap') {
+      hint.textContent = '首次使用：这个账号将接管当前 data/ 目录里已有的数据。';
+      tabReg.style.display = 'none';
+      tabLogin.style.display = 'none';
+    }
+    clearError();
+  }
+
+  async function boot() {
+    try {
+      const r = await fetch('/api/auth/status', { credentials: 'same-origin' });
+      const s = await r.json();
+      if (!s.has_users) { mode = 'bootstrap'; }
+      else if (!s.allow_signup) { tabReg.style.display = 'none'; }
+      if (s.authed) { location.replace(next); return; }
+    } catch (e) { /* 离线时按登录处理 */ }
+    render();
+  }
+
+  tabLogin.addEventListener('click', () => { mode = 'login'; render(); });
+  tabReg.addEventListener('click', () => { mode = 'register'; render(); });
+
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    clearError();
+    const email = $('email').value.trim();
+    const password = $('password').value;
+
+    if (mode !== 'login') {
+      if (password.length < 8) return showError('密码至少 8 位');
+      if (password !== $('confirm').value) return showError('两次输入的密码不一致');
+    }
+
+    const url = mode === 'login' ? '/api/auth/login'
+              : mode === 'bootstrap' ? '/api/auth/bootstrap'
+              : '/api/auth/register';
+
+    submit.disabled = true;
+    const old = submit.textContent;
+    submit.textContent = '处理中…';
+    try {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ email, password })
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || `请求失败 (${r.status})`);
+      location.replace(next);
+    } catch (e) {
+      showError(e.message || '网络错误，请重试');
+      submit.disabled = false;
+      submit.textContent = old;
+    }
+  });
+
+  boot();
+})();
+</script>
+</body>
+</html>
