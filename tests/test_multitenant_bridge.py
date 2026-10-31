@@ -179,3 +179,44 @@ class BridgeWatchdogTests(unittest.TestCase):
              patch.object(self.bm, "_save_registry"):
             self.bm.start(tenant)
         self.assertTrue(self.bm._enabled.get("u1"))
+
+
+class ProxyResolutionTests(unittest.TestCase):
+    """代理优先级：租户 config.yaml > 进程环境变量。"""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="wa-proxy-"))
+        self._old_env = os.environ.get("WHATSAPP_BOT_DATA_DIR")
+        os.environ["WHATSAPP_BOT_DATA_DIR"] = str(self.tmp)
+        self.bm = importlib.reload(importlib.import_module("bridge_manager"))
+
+    def tearDown(self):
+        if self._old_env is None:
+            os.environ.pop("WHATSAPP_BOT_DATA_DIR", None)
+        else:
+            os.environ["WHATSAPP_BOT_DATA_DIR"] = self._old_env
+
+    def _tenant(self, name: str, proxy: str | None):
+        path = self.tmp / "tenants" / name
+        (path / "data").mkdir(parents=True, exist_ok=True)
+        if proxy is not None:
+            (path / "config.yaml").write_text(
+                f"bridge:\n  proxy: \"{proxy}\"\n", encoding="utf-8")
+        return Tenant(name, f"{name}@example.com", path)
+
+    def test_tenant_config_wins_over_env(self):
+        tenant = self._tenant("cfg", "http://127.0.0.1:7897")
+        with patch.dict(os.environ, {"HTTPS_PROXY": "http://env-proxy:8080"}):
+            self.assertEqual(self.bm.proxy_for(tenant), "http://127.0.0.1:7897")
+
+    def test_falls_back_to_environment(self):
+        tenant = self._tenant("plain", None)
+        with patch.dict(os.environ, {"HTTPS_PROXY": "http://env-proxy:8080"}):
+            self.assertEqual(self.bm.proxy_for(tenant), "http://env-proxy:8080")
+
+    def test_empty_when_nothing_configured(self):
+        tenant = self._tenant("empty", None)
+        env = {k: v for k, v in os.environ.items()
+               if k.lower() not in ("https_proxy", "http_proxy")}
+        with patch.dict(os.environ, env, clear=True):
+            self.assertEqual(self.bm.proxy_for(tenant), "")

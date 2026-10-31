@@ -174,6 +174,13 @@ def main(argv=None) -> int:
     get_connection()
     logger.info("Database ready: %s", cfg.database.path)
 
+    try:
+        import bridge_manager
+        logger.info("进程级出站代理: %s（每个租户可在 config.yaml 的 bridge.proxy 覆盖）",
+                    bridge_manager.proxy_for() or "未设置（直连 / TUN）")
+    except Exception:
+        logger.exception("解析出站代理失败")
+
     # 账号库（全局，和租户目录并列）
     import accounts as _accounts
     _accounts.get_conn()

@@ -107,6 +107,43 @@ Cloudflare Zero Trust → Access → Applications → Add：
 | `API_HOST` / `API_PORT` | `127.0.0.1` / `8000` | 监听地址 |
 | `BRIDGE_PORT` | `3001` | 单租户回退端口；多租户由 `bridge_manager` 分配 3101+ |
 
+## 6.5 出站代理
+
+WhatsApp 对机房 IP 不算友好，很多时候必须挂代理。优先级从高到低：
+
+1. **租户自己的** `config.yaml → bridge.proxy`（控制台里保存的就是这一项）
+2. 进程环境变量 `HTTPS_PROXY` / `http_proxy`
+
+`bridge_manager` 启动子进程时会把解析结果显式写进 `HTTPS_PROXY`，并在 `data/logs/bridge.log` 里打印一行 `Using proxy: ...`。
+
+自检接口：
+
+```bash
+curl -s -b cookies.txt https://bot.example.com/admin/api/netcheck | jq
+```
+
+```json
+{
+  "proxy": "http://127.0.0.1:7897",
+  "direct":   {"ok": true, "ip": "1.2.3.4", "country": "JP"},
+  "via_proxy":{"ok": true, "ip": "5.6.7.8", "country": "US"},
+  "bridge":   {"online": true, "port": 3101}
+}
+```
+
+怎么读：
+
+| 现象 | 含义 |
+|---|---|
+| 两边 IP 相同 | 代理没生效（或本机是 TUN 全局模式，直连也走了代理，属正常） |
+| 只有 `via_proxy` 失败 | 代理挂了 / 端口写错 |
+| 两边都失败 | 本机出网有问题，先查 DNS 和防火墙 |
+
+注意两点：
+
+- 进程内固定 `NO_PROXY=127.0.0.1,localhost`，bridge 回调自己不会绕代理。
+- **AI 调用走的是进程环境变量**，不受租户 `bridge.proxy` 影响；要给 AI 也走代理，就配全局 `HTTPS_PROXY`。
+
 ## 7. 数据与备份
 
 ```

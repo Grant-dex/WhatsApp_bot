@@ -1244,6 +1244,43 @@ async def bridge_status():
 
 # ── Proxy Config ──────────────────────────────────────────────────────────────
 
+@router.get("/netcheck")
+async def netcheck():
+    """出站网络自检：直连出口、代理出口、bridge 状态。
+
+    排查"消息发不出去"时先看这里——能区分是代理没生效、代理挂了，
+    还是 WhatsApp 本身拒绝了这个 IP。
+    """
+    import httpx
+
+    import bridge_manager
+    import tenancy
+
+    tenant = tenancy.current()
+    proxy_url = bridge_manager.proxy_for(tenant)
+
+    async def fetch_ip(proxy: str | None) -> dict:
+        try:
+            async with httpx.AsyncClient(timeout=6.0, trust_env=False,
+                                         proxy=proxy) as client:
+                resp = await client.get("https://ipinfo.io/json")
+                resp.raise_for_status()
+                data = resp.json()
+                return {"ok": True, "ip": data.get("ip"),
+                        "country": data.get("country"), "org": data.get("org")}
+        except Exception as exc:
+            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+
+    result = {
+        "proxy": proxy_url or None,
+        "bridge": bridge_manager.status(tenant),
+        "direct": await fetch_ip(None),
+    }
+    if proxy_url:
+        result["via_proxy"] = await fetch_ip(proxy_url)
+    return result
+
+
 @router.get("/proxy")
 async def get_proxy():
     cfg = get_config()

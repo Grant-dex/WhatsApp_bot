@@ -122,6 +122,28 @@ def current_port() -> int:
 
 # ── 进程 ────────────────────────────────────────────────────────────────
 
+# ── 代理 ────────────────────────────────────────────────────────────────
+
+def proxy_for(tenant: Optional[Tenant] = None) -> str:
+    """解析该租户的出站代理：租户 config.yaml 优先，其次进程环境变量。
+
+    bridge 子进程只认 HTTPS_PROXY 环境变量，所以这里必须显式解析后传进去，
+    否则控制台里保存的 bridge.proxy 永远不生效。
+    """
+    tenant = tenant or tenancy.current()
+    if tenant is not None:
+        token = tenancy.set_current(tenant)
+        try:
+            configured = (get_config().bridge.proxy or "").strip()
+        except Exception:
+            configured = ""
+        finally:
+            tenancy.reset_current(token)
+        if configured:
+            return configured
+    return (os.getenv("HTTPS_PROXY") or os.getenv("https_proxy") or "").strip()
+
+
 def _node_bin() -> str:
     node = shutil.which("node")
     if not node:
@@ -170,6 +192,14 @@ def start(tenant: Tenant) -> dict:
             "no_proxy": "127.0.0.1,localhost",
         })
 
+        # 代理是"显式传递"的：bridge 只认 HTTPS_PROXY，不读 config.yaml
+        proxy = proxy_for(tenant)
+        for key in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"):
+            env.pop(key, None)
+        if proxy:
+            env["HTTPS_PROXY"] = env["https_proxy"] = proxy
+            env["HTTP_PROXY"] = env["http_proxy"] = proxy
+
         log = open(_log_path(tenant.data_dir), "a", encoding="utf-8")
         proc = subprocess.Popen(
             [_node_bin(), str(ROOT / "bridge" / "index.js")],
@@ -181,8 +211,8 @@ def start(tenant: Tenant) -> dict:
         _enabled[tenant.user_id] = True
         _save_registry()
 
-        logger.info("[bridge] 启动租户 %s 的 bridge: pid=%s port=%s",
-                    tenant.user_id, proc.pid, port)
+        logger.info("[bridge] 启动租户 %s 的 bridge: pid=%s port=%s proxy=%s",
+                    tenant.user_id, proc.pid, port, proxy or "直连")
 
         # 等端口起来（最多 8 秒）
         for _ in range(32):
