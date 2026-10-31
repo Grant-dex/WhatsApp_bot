@@ -282,7 +282,20 @@ async def middleware(request: Request, call_next):
     return response
 
 
+async def security_headers(request: Request, call_next):
+    """基础安全响应头（点击劫持、MIME 嗅探、API 缓存）。"""
+    response = await call_next(request)
+    headers = response.headers
+    headers.setdefault("X-Content-Type-Options", "nosniff")
+    headers.setdefault("X-Frame-Options", "DENY")
+    headers.setdefault("Referrer-Policy", "same-origin")
+    if request.url.path.startswith(("/api/", "/admin/api/", "/webhook/")):
+        headers.setdefault("Cache-Control", "no-store")
+    return response
+
+
 def install(app) -> None:
-    """把认证中间件挂到 FastAPI 应用上。"""
+    """把认证与安全中间件挂到 FastAPI 应用上。"""
     app.middleware("http")(middleware)
+    app.middleware("http")(security_headers)
     app.include_router(router)

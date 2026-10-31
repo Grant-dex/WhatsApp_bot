@@ -1,0 +1,22 @@
+services:
+  whatsapp-bot:
+    build: .
+    image: whatsapp-bot:latest
+    container_name: whatsapp-bot
+    restart: unless-stopped
+    # 只监听本机，公网入口交给 Cloudflare Tunnel / 反向代理
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./data:/data
+    environment:
+      TZ: Asia/Shanghai
+      # 关闭自助注册时改成 0
+      WA_ALLOW_SIGNUP: "1"
+      # 平台级默认 LLM Key（用户可在自己的 data/.env 里覆盖）
+      # LLM_API_KEY: "sk-..."
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

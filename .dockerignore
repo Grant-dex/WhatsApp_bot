@@ -1,0 +1,18 @@
+# 构建上下文瘦身：只排除明确不需要的东西
+.git
+.venv
+data
+data-ui-test
+starry-night-flight
+starry-night-film
+artifacts
+design-reference
+docs/*.png
+**/__pycache__
+**/*.pyc
+.DS_Store
+*.mp4
+bridge/node_modules
+.npm-cache
+.testdata*
+*.png
