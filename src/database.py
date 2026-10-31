@@ -32,7 +32,15 @@ CREATE TABLE IF NOT EXISTS conversations (
     content TEXT NOT NULL,
     whatsapp_msg_id TEXT,
     ai_generated INTEGER DEFAULT 0,
-    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- Delivery lifecycle. Inbound rows use 'received'; outbound rows start
+    -- as 'pending' and only become 'sent' after the bridge confirms.
+    status TEXT NOT NULL DEFAULT 'pending'
+        CHECK(status IN ('pending','sent','failed','unknown','received')),
+    send_kind TEXT NOT NULL DEFAULT 'legacy'
+        CHECK(send_kind IN ('legacy','inbound','instant_reply','proactive','manual')),
+    error_message TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS follow_up_schedule (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,7 +50,8 @@ CREATE TABLE IF NOT EXISTS follow_up_schedule (
     next_followup_at TIMESTAMP,
     template TEXT,
     active INTEGER DEFAULT 1,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    sending_since TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS sent_followups (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,6 +64,20 @@ CREATE TABLE IF NOT EXISTS sent_followups (
 );
 CREATE INDEX IF NOT EXISTS idx_conv_customer ON conversations(customer_id, sent_at);
 CREATE INDEX IF NOT EXISTS idx_conv_msg_id ON conversations(whatsapp_msg_id);
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    version INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+-- Atomic daily quota counters. used counts confirmed sends and unknown
+-- results (an unknown result may have reached WhatsApp); reserved holds
+-- in-flight reservations so concurrent senders cannot exceed the limit.
+CREATE TABLE IF NOT EXISTS send_quota (
+    day TEXT PRIMARY KEY,
+    used INTEGER NOT NULL DEFAULT 0,
+    reserved INTEGER NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 CREATE INDEX IF NOT EXISTS idx_followup_next ON follow_up_schedule(next_followup_at) WHERE active=1;
 CREATE TABLE IF NOT EXISTS product_docs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -133,6 +156,121 @@ CREATE INDEX IF NOT EXISTS idx_memory_customer ON ai_memory_entries(customer_id,
 """
 
 
+def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    return {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+
+
+def _migrate_conversation_delivery(conn: sqlite3.Connection) -> None:
+    """Incrementally add delivery-state columns to a legacy database.
+
+    The migration is intentionally idempotent: it checks PRAGMA table_info
+    first, so running it twice (or after a partial failure) is safe.
+
+    Legacy rows cannot be re-verified. We preserve them without deleting data:
+      * inbound rows become 'received'
+      * outbound rows that already carry a real platform id become 'sent'
+      * all other legacy outbound rows become 'unknown' rather than claiming
+        they were delivered successfully.
+    """
+    cols = _table_columns(conn, "conversations")
+    if "status" not in cols:
+        conn.execute("ALTER TABLE conversations ADD COLUMN status TEXT NOT NULL DEFAULT 'unknown'")
+    if "send_kind" not in cols:
+        conn.execute("ALTER TABLE conversations ADD COLUMN send_kind TEXT NOT NULL DEFAULT 'legacy'")
+    if "error_message" not in cols:
+        conn.execute("ALTER TABLE conversations ADD COLUMN error_message TEXT")
+    if "updated_at" not in cols:
+        conn.execute("ALTER TABLE conversations ADD COLUMN updated_at TIMESTAMP")
+
+    conn.execute(
+        "UPDATE conversations SET status='received' "
+        "WHERE direction='inbound' AND (status IS NULL OR status='' OR status='pending' OR status='unknown')"
+    )
+    conn.execute(
+        "UPDATE conversations SET status='sent' "
+        "WHERE direction='outbound' AND whatsapp_msg_id IS NOT NULL AND whatsapp_msg_id<>'' "
+        "AND (status IS NULL OR status='' OR status='unknown' OR status='pending')"
+    )
+    conn.execute(
+        "UPDATE conversations SET status='unknown' "
+        "WHERE direction='outbound' AND status='pending' AND send_kind='legacy'"
+    )
+    conn.execute(
+        "UPDATE conversations SET send_kind='inbound' "
+        "WHERE direction='inbound' AND send_kind='legacy'"
+    )
+    conn.execute(
+        "UPDATE conversations SET send_kind='legacy' "
+        "WHERE direction='outbound' AND send_kind='legacy'"
+    )
+    conn.execute("UPDATE conversations SET updated_at=sent_at WHERE updated_at IS NULL")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_conv_status ON conversations(status, sent_at)")
+
+    # One platform id should map to one local message. Older databases may
+    # contain duplicates; in that case keep the non-unique index and rely on
+    # the write lock for de-duplication.
+    try:
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_conv_wa_msg_id_unique "
+            "ON conversations(whatsapp_msg_id) "
+            "WHERE whatsapp_msg_id IS NOT NULL AND whatsapp_msg_id<>''"
+        )
+    except sqlite3.IntegrityError:
+        pass
+
+
+def _migrate_followup_sending_claim(conn: sqlite3.Connection) -> None:
+    """Add a per-schedule in-flight claim used to prevent duplicate sends."""
+    cols = _table_columns(conn, "follow_up_schedule")
+    if "sending_since" not in cols:
+        conn.execute("ALTER TABLE follow_up_schedule ADD COLUMN sending_since TIMESTAMP")
+
+
+MIGRATIONS = [
+    (1, "conversation_delivery_status", _migrate_conversation_delivery),
+    (2, "followup_sending_claim", _migrate_followup_sending_claim),
+]
+
+
+def _apply_migrations(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS schema_migrations ("
+        "version INTEGER PRIMARY KEY, name TEXT NOT NULL, "
+        "applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+    )
+    applied = {r[0] for r in conn.execute("SELECT version FROM schema_migrations").fetchall()}
+    for version, name, migrate in MIGRATIONS:
+        if version in applied:
+            continue
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            migrate(conn)
+            conn.execute(
+                "INSERT INTO schema_migrations(version, name) VALUES(?,?)",
+                (version, name),
+            )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+
+def _reset_stale_quota_reservations(conn: sqlite3.Connection) -> None:
+    """Clear in-flight reservations left by a previous process.
+
+    The desktop app runs a single backend process, so at startup no send can
+    still be in flight. This prevents a crash between reserve and commit from
+    permanently consuming quota. Multi-process deployments would need expiring
+    reservation rows instead.
+    """
+    try:
+        conn.execute("UPDATE send_quota SET reserved=0, updated_at=? WHERE reserved<>0",
+                     (datetime.now().isoformat(),))
+        conn.commit()
+    except sqlite3.Error:
+        pass
+
+
 def get_connection() -> sqlite3.Connection:
     global _conn
     if _conn is None:
@@ -144,7 +282,9 @@ def get_connection() -> sqlite3.Connection:
         _conn.execute("PRAGMA journal_mode=WAL;")
         _conn.execute("PRAGMA foreign_keys=ON;")
         _conn.executescript(SCHEMA)
-        # Migrations for existing databases
+        _apply_migrations(_conn)
+        _reset_stale_quota_reservations(_conn)
+        # Legacy one-off migrations retained for older databases.
         try: _conn.execute("ALTER TABLE orders ADD COLUMN currency TEXT DEFAULT 'USD'")
         except: pass
         try: _conn.execute("ALTER TABLE customers ADD COLUMN email TEXT DEFAULT ''")
@@ -193,25 +333,263 @@ def update_customer(phone: str, new_phone: Optional[str] = None, **kwargs) -> Op
     return dict(row) if row else None
 
 
+MESSAGE_STATUSES = {"pending", "sent", "failed", "unknown", "received"}
+OUTBOUND_STATUSES = {"pending", "sent", "failed", "unknown"}
+SEND_KINDS = {"legacy", "inbound", "instant_reply", "proactive", "manual"}
+
+
 def save_message(customer_id: int, direction: str, content: str,
-                 whatsapp_msg_id: Optional[str] = None, ai_generated: bool = False) -> Optional[int]:
+                 whatsapp_msg_id: Optional[str] = None, ai_generated: bool = False,
+                 status: Optional[str] = None, send_kind: Optional[str] = None,
+                 error_message: Optional[str] = None,
+                 dedupe_content_window_seconds: int = 0) -> Optional[int]:
+    """Persist a message and return its id, or None for a duplicate inbound id.
+
+    Outbound rows default to 'pending'; only a bridge receipt may move them to
+    'sent'. Inbound rows default to 'received'. De-duplication happens under
+    the write lock so concurrent webhook deliveries cannot insert twice.
+    """
+    if direction not in ("inbound", "outbound"):
+        raise ValueError(f"invalid direction: {direction}")
+    if status is None:
+        status = "received" if direction == "inbound" else "pending"
+    if status not in MESSAGE_STATUSES:
+        raise ValueError(f"invalid message status: {status}")
+    if send_kind is None:
+        send_kind = "inbound" if direction == "inbound" else "legacy"
+    if send_kind not in SEND_KINDS:
+        raise ValueError(f"invalid send kind: {send_kind}")
+
     conn = get_connection()
-    if whatsapp_msg_id:
-        if conn.execute("SELECT id FROM conversations WHERE whatsapp_msg_id=?", (whatsapp_msg_id,)).fetchone():
-            return None
     with _write_lock:
+        if whatsapp_msg_id:
+            row = conn.execute(
+                "SELECT id FROM conversations WHERE whatsapp_msg_id=?",
+                (whatsapp_msg_id,),
+            ).fetchone()
+            if row:
+                return None
+        elif direction == "inbound" and dedupe_content_window_seconds > 0:
+            cutoff = (datetime.now() - timedelta(seconds=dedupe_content_window_seconds)).isoformat()
+            row = conn.execute(
+                "SELECT id FROM conversations WHERE customer_id=? AND direction='inbound' "
+                "AND content=? AND sent_at>=? ORDER BY id DESC LIMIT 1",
+                (customer_id, content, cutoff),
+            ).fetchone()
+            if row:
+                return None
         now = datetime.now().isoformat()
         cur = conn.execute(
-            "INSERT INTO conversations(customer_id,direction,content,whatsapp_msg_id,ai_generated,sent_at) VALUES(?,?,?,?,?,?)",
-            (customer_id, direction, content, whatsapp_msg_id, int(ai_generated), now))
+            "INSERT INTO conversations(customer_id,direction,content,whatsapp_msg_id,"
+            "ai_generated,sent_at,status,send_kind,error_message,updated_at) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?)",
+            (customer_id, direction, content, whatsapp_msg_id, int(ai_generated),
+             now, status, send_kind, error_message, now))
         conn.commit()
     return cur.lastrowid
 
 
+def get_message(conversation_id: int) -> Optional[dict]:
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM conversations WHERE id=?", (conversation_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def get_message_by_whatsapp_id(whatsapp_msg_id: str) -> Optional[dict]:
+    if not whatsapp_msg_id:
+        return None
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM conversations WHERE whatsapp_msg_id=? ORDER BY id LIMIT 1",
+        (whatsapp_msg_id,),
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def update_message_delivery(conversation_id: int, status: str,
+                            whatsapp_msg_id: Optional[str] = None,
+                            error_message: Optional[str] = None) -> dict:
+    """Apply a bridge result idempotently.
+
+    Rules:
+      * a confirmed 'sent' is terminal and is never downgraded by a late
+        failure/unknown receipt;
+      * failed/unknown may later be upgraded to 'sent' (the platform id
+        finally arrived);
+      * repeating the same receipt changes nothing and never inserts a row.
+    """
+    if status not in OUTBOUND_STATUSES:
+        raise ValueError(f"invalid outbound status: {status}")
+
+    conn = get_connection()
+    with _write_lock:
+        row = conn.execute(
+            "SELECT * FROM conversations WHERE id=?", (conversation_id,)
+        ).fetchone()
+        if not row:
+            return {"ok": False, "error": "message not found", "changed": False}
+        current = row["status"]
+        if row["direction"] != "outbound":
+            return {"ok": False, "error": "not an outbound message", "changed": False,
+                    "message": dict(row)}
+
+        same_id = (not whatsapp_msg_id) or (row["whatsapp_msg_id"] == whatsapp_msg_id)
+        if current == "sent" and status != "sent":
+            return {"ok": True, "changed": False, "previous": current,
+                    "status": current, "message": dict(row),
+                    "note": "confirmed send is terminal"}
+        if current == status and same_id and (status == "sent" or row["error_message"] == error_message):
+            return {"ok": True, "changed": False, "previous": current,
+                    "status": current, "message": dict(row)}
+
+        new_msg_id = whatsapp_msg_id or row["whatsapp_msg_id"]
+        new_error = None if status == "sent" else error_message
+        now = datetime.now().isoformat()
+        try:
+            conn.execute(
+                "UPDATE conversations SET status=?, whatsapp_msg_id=?, error_message=?, "
+                "updated_at=? WHERE id=?",
+                (status, new_msg_id, new_error, now, conversation_id),
+            )
+            conn.commit()
+        except sqlite3.IntegrityError:
+            conn.rollback()
+            logger.warning("Duplicate whatsapp_msg_id %s for conversation %s",
+                           new_msg_id, conversation_id)
+            return {"ok": False, "changed": False,
+                    "error": "duplicate whatsapp_msg_id", "message": dict(row)}
+        updated = conn.execute(
+            "SELECT * FROM conversations WHERE id=?", (conversation_id,)
+        ).fetchone()
+        return {"ok": True, "changed": True, "previous": current,
+                "status": status, "message": dict(updated)}
+
+
+def count_sent_messages_today(kind: Optional[str] = None) -> int:
+    """Count messages confirmed as sent today. Pending/failed/unknown never count."""
+    conn = get_connection()
+    today = datetime.now().strftime("%Y-%m-%d")
+    sql = (
+        "SELECT COUNT(*) AS cnt FROM conversations "
+        "WHERE direction='outbound' AND status='sent' AND date(sent_at)=?"
+    )
+    params: list = [today]
+    if kind:
+        sql += " AND send_kind=?"
+        params.append(kind)
+    row = conn.execute(sql, params).fetchone()
+    return row["cnt"] if row else 0
+
+
+def count_today_outbound_by_status(status: str) -> int:
+    conn = get_connection()
+    today = datetime.now().strftime("%Y-%m-%d")
+    row = conn.execute(
+        "SELECT COUNT(*) AS cnt FROM conversations "
+        "WHERE direction='outbound' AND status=? AND date(sent_at)=?",
+        (status, today),
+    ).fetchone()
+    return row["cnt"] if row else 0
+
+
+# ── Daily send quota (atomic reservation) ──────────────────────────────────────
+
+def _quota_day(day: Optional[str] = None) -> str:
+    return day or datetime.now().strftime("%Y-%m-%d")
+
+
+def _ensure_quota_row(conn: sqlite3.Connection, day: str) -> sqlite3.Row:
+    row = conn.execute("SELECT * FROM send_quota WHERE day=?", (day,)).fetchone()
+    if row:
+        return row
+    # Include pre-migration auto-sent rows so an upgrade cannot reset today's
+    # quota to zero mid-day. Legacy manual sends (ai_generated=0) are excluded.
+    used = conn.execute(
+        "SELECT COUNT(*) AS cnt FROM conversations "
+        "WHERE direction='outbound' AND status IN ('sent','unknown') "
+        "AND date(sent_at)=? "
+        "AND (send_kind='proactive' OR (send_kind='legacy' AND ai_generated=1))",
+        (day,),
+    ).fetchone()["cnt"]
+    conn.execute(
+        "INSERT INTO send_quota(day, used, reserved, updated_at) VALUES(?,?,0,?)",
+        (day, used, datetime.now().isoformat()),
+    )
+    return conn.execute("SELECT * FROM send_quota WHERE day=?", (day,)).fetchone()
+
+
+def get_daily_quota_usage(day: Optional[str] = None) -> dict:
+    day = _quota_day(day)
+    conn = get_connection()
+    with _write_lock:
+        row = _ensure_quota_row(conn, day)
+        conn.commit()
+    return {"day": day, "used": row["used"], "reserved": row["reserved"],
+            "total": row["used"] + row["reserved"]}
+
+
+def reserve_daily_quota(limit: int, day: Optional[str] = None) -> bool:
+    """Atomically reserve one proactive send slot.
+
+    Uses BEGIN IMMEDIATE so concurrent requests serialize in SQLite. Callers
+    must release (definite failure) or commit (sent/unknown) the reservation.
+    """
+    if limit <= 0:
+        return False
+    day = _quota_day(day)
+    conn = get_connection()
+    with _write_lock:
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            row = _ensure_quota_row(conn, day)
+            if row["used"] + row["reserved"] >= limit:
+                conn.rollback()
+                return False
+            conn.execute(
+                "UPDATE send_quota SET reserved=reserved+1, updated_at=? WHERE day=?",
+                (datetime.now().isoformat(), day),
+            )
+            conn.commit()
+            return True
+        except Exception:
+            conn.rollback()
+            raise
+
+
+def release_daily_quota(day: Optional[str] = None) -> None:
+    day = _quota_day(day)
+    conn = get_connection()
+    with _write_lock:
+        conn.execute(
+            "UPDATE send_quota SET reserved=CASE WHEN reserved>0 THEN reserved-1 ELSE 0 END, "
+            "updated_at=? WHERE day=?",
+            (datetime.now().isoformat(), day),
+        )
+        conn.commit()
+
+
+def commit_daily_quota(day: Optional[str] = None) -> None:
+    """Turn a reservation into a used slot (confirmed or possibly delivered)."""
+    day = _quota_day(day)
+    conn = get_connection()
+    with _write_lock:
+        conn.execute(
+            "UPDATE send_quota SET reserved=CASE WHEN reserved>0 THEN reserved-1 ELSE 0 END, "
+            "used=used+1, updated_at=? WHERE day=?",
+            (datetime.now().isoformat(), day),
+        )
+        conn.commit()
+
+
 def get_recent_conversations(customer_id: int, limit: int = 20) -> list[dict]:
     conn = get_connection()
+    # Only delivered inbound/sent outbound messages feed the AI context. A
+    # pending/failed/unknown generated reply must not look like something the
+    # bot actually said.
     rows = conn.execute(
-        "SELECT * FROM conversations WHERE customer_id=? ORDER BY sent_at DESC LIMIT ?",
+        "SELECT * FROM conversations WHERE customer_id=? "
+        "AND status IN ('received','sent') "
+        "ORDER BY sent_at DESC LIMIT ?",
         (customer_id, limit)).fetchall()
     return [dict(r) for r in reversed(rows)]
 
@@ -219,7 +597,9 @@ def get_recent_conversations(customer_id: int, limit: int = 20) -> list[dict]:
 def get_last_ai_reply_time(customer_id: int) -> Optional[datetime]:
     conn = get_connection()
     row = conn.execute(
-        "SELECT sent_at FROM conversations WHERE customer_id=? AND ai_generated=1 AND direction='outbound' ORDER BY sent_at DESC LIMIT 1",
+        "SELECT sent_at FROM conversations WHERE customer_id=? AND ai_generated=1 "
+        "AND direction='outbound' AND status IN ('sent','pending','unknown') "
+        "ORDER BY sent_at DESC LIMIT 1",
         (customer_id,)).fetchone()
     return datetime.fromisoformat(row["sent_at"]) if row else None
 
@@ -227,7 +607,8 @@ def get_last_ai_reply_time(customer_id: int) -> Optional[datetime]:
 def count_ai_replies_since(since: datetime) -> int:
     conn = get_connection()
     return conn.execute(
-        "SELECT COUNT(*) as cnt FROM conversations WHERE ai_generated=1 AND sent_at>=?",
+        "SELECT COUNT(*) as cnt FROM conversations WHERE ai_generated=1 "
+        "AND direction='outbound' AND status='sent' AND sent_at>=?",
         (since.isoformat(),)).fetchone()["cnt"]
 
 
@@ -270,6 +651,36 @@ def update_followup_schedule(schedule_id: int):
     with _write_lock:
         conn.execute("UPDATE follow_up_schedule SET last_followup_at=?, next_followup_at=? WHERE id=?",
                      (now.isoformat(), (now + timedelta(days=freq)).isoformat(), schedule_id))
+        conn.commit()
+
+
+def claim_followup_schedule(schedule_id: int, stale_seconds: int = 900) -> bool:
+    """Atomically claim one schedule for sending.
+
+    Prevents a manual send-now and an automatic tick from sending the same
+    follow-up twice. A stale claim (crashed process) can be reclaimed after
+    ``stale_seconds``.
+    """
+    conn = get_connection()
+    now = datetime.now()
+    cutoff = (now - timedelta(seconds=stale_seconds)).isoformat()
+    with _write_lock:
+        cur = conn.execute(
+            "UPDATE follow_up_schedule SET sending_since=? "
+            "WHERE id=? AND (sending_since IS NULL OR sending_since < ?)",
+            (now.isoformat(), schedule_id, cutoff),
+        )
+        conn.commit()
+        return cur.rowcount == 1
+
+
+def release_followup_claim(schedule_id: int) -> None:
+    conn = get_connection()
+    with _write_lock:
+        conn.execute(
+            "UPDATE follow_up_schedule SET sending_since=NULL WHERE id=?",
+            (schedule_id,),
+        )
         conn.commit()
 
 

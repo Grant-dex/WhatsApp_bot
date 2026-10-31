@@ -1,0 +1,18 @@
+{
+  "checks": [
+    "dashboard issue opens full customer detail",
+    "customer search empty state",
+    "real customer edit persisted",
+    "real CSV import through browser file chooser and cleanup",
+    "real document create/edit/delete and hostile text",
+    "real order CRUD and zero amount preserved",
+    "real pause switch read/update/restore",
+    "failed pause update does not claim success",
+    "HTTP failure replaces counts with error state",
+    "bridge partial failure visible; save disabled",
+    "synthetic QR renders; disappearance does not claim authentication",
+    "manual send stub called once, unknown retained, no retry"
+  ],
+  "page_errors": [],
+  "stub_send_count": 1
+}

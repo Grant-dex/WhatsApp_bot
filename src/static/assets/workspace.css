@@ -1,0 +1,60 @@
+/* Shared system: confirmed dashboard-preview.html colors, proportions and density. */
+:root{--nav-bg:#12272a;--bg:#f3f7f8;--text:#14282c;--text2:#78909f;--teal:#008891;--border:#e1ebef;--radius:8px;--radius-sm:6px;--shadow:none;--green:#008b65;--green-bg:#e1f7ef;--red:#e43845;--red-bg:#ffe7ea;--orange:#ba7300;--orange-bg:#fff3dc}
+nav{background:var(--nav-bg);padding:0 13px;overflow-y:auto}
+nav .logo{padding:26px 13px 28px;margin:0;gap:17px}
+nav .logo-title{font-size:23px;font-weight:650;letter-spacing:0}
+nav .logo-sub{font-size:17px;color:#bed2da}
+nav a{margin:5px 0;gap:20px;padding:15px 18px;font-size:18px;height:55px;font-weight:400}
+nav a.active{background:#087f88;font-weight:500}
+nav .nav-section{margin:24px 13px 10px;padding:20px 0 0;color:#b5ccd3}
+.pause-toggle-area{margin: auto 13px 0;padding:19px 0 30px}
+.pause-title{font-size:16px}.pause-status,.bridge-footer{font-size:14px}
+.page,#page-dashboard{max-width:none;padding:24px 28px 32px}
+.page-header,#page-dashboard .page-header{min-height:97px;margin-bottom:0;gap:16px}
+.page-header h1,#page-dashboard .page-header h1{font-size:36px;line-height:1.3;letter-spacing:1px;font-weight:750}
+.page-header p,#page-dashboard .page-header p{font-size:18px;margin-top:6px;color:var(--text2)}
+.page-header-right,#page-dashboard .page-header-right{padding-top:12px}.date-chip,#page-dashboard .date-chip{font-size:16px}
+.panel{border-radius:8px;box-shadow:none;margin-bottom:14px;min-width:0}
+.panel-header{padding:16px 18px 12px}.panel-header h3{font-size:20px;font-weight:650}
+.panel-body{padding:17px}.panel-body.no-pad{overflow:auto}
+.stats,#page-dashboard .stats{gap:10px;margin-bottom:18px;grid-template-columns:1fr 1.03fr 1.03fr 1.08fr 1.14fr 1.03fr}
+.stat-card,#page-dashboard .stat-card{border-radius:8px;box-shadow:none;min-height:156px;padding:22px 20px 17px}
+.stat-top,#page-dashboard .stat-top{gap:16px;margin-bottom:10px;min-height:29px}
+.stat-icon,.stat-icon.green,.stat-icon.orange,.stat-icon.blue,.stat-icon.red{width:29px;height:29px;background:none;border-radius:0;color:var(--teal)}
+.stat-icon svg{width:29px;height:29px}.stat-label,#page-dashboard .stat-label{font-size:14px;color:#344e60;white-space:normal;overflow:visible}
+.stat-val,#page-dashboard .stat-val{font-size:33px;line-height:1.3;letter-spacing:-.6px}.stat-sub,#page-dashboard .stat-sub{font-size:13px;margin-top:8px;line-height:1.5}
+#page-dashboard .dash-grid{grid-template-columns:minmax(0,1.8fr) minmax(0,1fr);gap:14px}
+#page-dashboard .dash-grid .panel:nth-child(2) td{height:54px}
+#page-dashboard .stat-val.compact{font-size:31px}
+#page-dashboard .panel-body.no-pad{overflow:auto}
+table{font-size:14px;border-collapse:separate;border-spacing:0}
+th{background:#f0f5f7;color:#506a7d;font-size:13px;font-weight:500;height:42px;padding:8px 14px;letter-spacing:0}
+td{height:54px;padding:8px 14px;font-size:14px;color:#344b64;border-color:#e6edf1}
+.badge{border-radius:11px;font-weight:500;font-size:12px;padding:4px 10px}
+.btn,.input{border-radius:5px;font-size:14px}.btn-xs{font-size:12px;border-radius:4px}
+.toolbar{padding:16px 18px;gap:12px}.toolbar .search-field{min-width:240px}.pagination{padding:14px 18px}
+.person-name{font-weight:500;font-size:14px}.avatar{font-weight:550}.person-sub{font-size:12px}
+.customer-link{border:0;background:none;color:var(--teal);cursor:pointer;text-align:left;font:inherit}
+.empty-state{padding:30px 18px}.empty-state svg{background:none;color:var(--text2)}
+.sidebar{max-width:100vw}.sidebar-header{border-radius:0}.field-row{min-width:0}
+button:disabled{cursor:not-allowed;opacity:.55}
+@media(min-width:1650px){#page-dashboard .stats{grid-template-columns:1fr 1.03fr 1.03fr 1.08fr 1.14fr 1.03fr}}
+@media(max-width:1350px){:root{--nav-w:226px}nav .logo{gap:12px;padding-left:8px}nav .logo-title{font-size:20px}nav a{gap:16px;font-size:17px}.page,#page-dashboard{padding:24px}.stats,#page-dashboard .stats{grid-template-columns:repeat(3,minmax(0,1fr))}.stat-card,#page-dashboard .stat-card{min-height:137px;padding:17px 20px}.stat-top,#page-dashboard .stat-top{gap:14px}}
+@media(max-width:1100px){:root{--nav-w:76px}nav{padding:0 8px}nav .logo{padding:24px 14px 27px}nav .logo-text,nav .nav-label,nav .nav-section{display:none}nav a{justify-content:center;padding:15px;gap:0}nav .bridge-dot{display:none}.pause-toggle-area{margin: auto 0 0;padding:12px 0}.pause-copy,.pause-stats,.bridge-footer,.pause-icon{display:none}.pause-card{justify-content:center}.page-header h1,#page-dashboard .page-header h1{font-size:32px}.page-header p,#page-dashboard .page-header p{font-size:16px}}
+@media(max-width:800px){.page,#page-dashboard{padding:20px 16px}.page-header,#page-dashboard .page-header{min-height:100px;flex-wrap:wrap}.page-header-right{padding-top:0}.date-chip{display:none}#page-dashboard .dash-grid,.followup-lower,.bridge-grid{grid-template-columns:1fr}.toolbar{align-items:stretch}.toolbar .search-field{flex-basis:100%;min-width:0}.panel-body.no-pad{overflow:auto}.stats,#page-dashboard .stats{grid-template-columns:repeat(2,minmax(0,1fr))}.page-header h1,#page-dashboard .page-header h1{font-size:28px}.sidebar{width:min(480px,100vw)}}
+/* Bridge + event log: same thin borders, compact rows and line icon vocabulary. */
+#page-bridge .bridge-status-card{position:relative;padding-left:78px;min-height:150px}
+#page-bridge .bridge-status-card .stat-icon{position:absolute;left:22px;top:28px;width:36px;height:36px}
+#page-bridge .bridge-status-card .stat-top{min-height:22px;margin-bottom:6px}
+#page-bridge .stat-val{font-size:25px}#page-bridge .stat-val.compact{font-size:22px}
+#page-bridge .bridge-error{font-size:12px;overflow-wrap:anywhere;max-height:3em;overflow:auto}
+#page-bridge .bridge-grid{grid-template-columns:minmax(0,1.65fr) minmax(0,1fr);gap:14px}
+#page-bridge .qr-panel-body{padding:18px;gap:12px;min-height:170px}
+#page-bridge .qr-panel-body .stat-icon{background:none!important;border-radius:0!important}
+#page-bridge .bridge-events{padding:6px 18px 16px}.timeline-item{padding:10px 0 10px 22px}
+#page-activity .panel{padding:16px 18px}#page-activity .panel-header{padding:0 0 12px}
+#page-activity .log-table td{height:58px;vertical-align:top;padding-top:14px;padding-bottom:14px}
+#page-activity .log-msg{font-family:var(--font);font-size:14px;line-height:1.6;overflow-wrap:anywhere}
+#page-activity .log-level{border-radius:10px;font-weight:500}.log-source{padding:12px 0 0;overflow-wrap:anywhere}
+@media(max-width:1100px){#page-bridge .bridge-status-card{padding:16px;min-height:160px}#page-bridge .bridge-status-card .stat-icon{position:static;width:26px;height:26px}}
+@media(max-width:800px){#page-bridge .bridge-grid{grid-template-columns:1fr}#page-bridge .stats{grid-template-columns:1fr!important}}

@@ -1,0 +1,166 @@
+{
+  "checks": [
+    {
+      "page": "dashboard",
+      "viewport": "1024x768",
+      "document_overflow": false
+    },
+    {
+      "page": "customers",
+      "viewport": "1024x768",
+      "document_overflow": false
+    },
+    {
+      "page": "conversations",
+      "viewport": "1024x768",
+      "document_overflow": false
+    },
+    {
+      "page": "followups",
+      "viewport": "1024x768",
+      "document_overflow": false
+    },
+    {
+      "page": "orders",
+      "viewport": "1024x768",
+      "document_overflow": false
+    },
+    {
+      "page": "product-docs",
+      "viewport": "1024x768",
+      "document_overflow": false
+    },
+    {
+      "page": "bridge",
+      "viewport": "1024x768",
+      "document_overflow": false
+    },
+    {
+      "page": "activity",
+      "viewport": "1024x768",
+      "document_overflow": false
+    },
+    {
+      "page": "dashboard",
+      "viewport": "1280x800",
+      "document_overflow": false
+    },
+    {
+      "page": "customers",
+      "viewport": "1280x800",
+      "document_overflow": false
+    },
+    {
+      "page": "conversations",
+      "viewport": "1280x800",
+      "document_overflow": false
+    },
+    {
+      "page": "followups",
+      "viewport": "1280x800",
+      "document_overflow": false
+    },
+    {
+      "page": "orders",
+      "viewport": "1280x800",
+      "document_overflow": false
+    },
+    {
+      "page": "product-docs",
+      "viewport": "1280x800",
+      "document_overflow": false
+    },
+    {
+      "page": "bridge",
+      "viewport": "1280x800",
+      "document_overflow": false
+    },
+    {
+      "page": "activity",
+      "viewport": "1280x800",
+      "document_overflow": false
+    },
+    {
+      "page": "dashboard",
+      "viewport": "1440x900",
+      "document_overflow": false
+    },
+    {
+      "page": "customers",
+      "viewport": "1440x900",
+      "document_overflow": false
+    },
+    {
+      "page": "conversations",
+      "viewport": "1440x900",
+      "document_overflow": false
+    },
+    {
+      "page": "followups",
+      "viewport": "1440x900",
+      "document_overflow": false
+    },
+    {
+      "page": "orders",
+      "viewport": "1440x900",
+      "document_overflow": false
+    },
+    {
+      "page": "product-docs",
+      "viewport": "1440x900",
+      "document_overflow": false
+    },
+    {
+      "page": "bridge",
+      "viewport": "1440x900",
+      "document_overflow": false
+    },
+    {
+      "page": "activity",
+      "viewport": "1440x900",
+      "document_overflow": false
+    },
+    {
+      "page": "dashboard",
+      "viewport": "1920x1080",
+      "document_overflow": false
+    },
+    {
+      "page": "customers",
+      "viewport": "1920x1080",
+      "document_overflow": false
+    },
+    {
+      "page": "conversations",
+      "viewport": "1920x1080",
+      "document_overflow": false
+    },
+    {
+      "page": "followups",
+      "viewport": "1920x1080",
+      "document_overflow": false
+    },
+    {
+      "page": "orders",
+      "viewport": "1920x1080",
+      "document_overflow": false
+    },
+    {
+      "page": "product-docs",
+      "viewport": "1920x1080",
+      "document_overflow": false
+    },
+    {
+      "page": "bridge",
+      "viewport": "1920x1080",
+      "document_overflow": false
+    },
+    {
+      "page": "activity",
+      "viewport": "1920x1080",
+      "document_overflow": false
+    }
+  ],
+  "page_errors": [],
+  "data": "isolated SQLite UI fixture; Bridge disabled; scheduler disabled"
+}

@@ -1,3 +1,4 @@
+import html
 import logging
 import os
 import sys
@@ -8,6 +9,7 @@ from typing import Optional
 
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 import uvicorn
 
@@ -18,7 +20,7 @@ _server_error: Optional[str] = None
 
 
 def _init_app():
-    """Auto-initialize config and database when running standalone (e.g., via Electron)."""
+    """Auto-initialize config and database when running standalone (e.g., web_main.py)."""
     from config import load_config, load_dotenv, get_data_dir
 
     data_dir = get_data_dir()
@@ -53,7 +55,7 @@ async def _lifespan(app: FastAPI):
     yield
 
 
-# Auto-initialize when running standalone (e.g., via Electron's uvicorn spawn)
+# Auto-initialize when running standalone (web_main.py / direct uvicorn)
 try:
     from config import _config
     if _config is None:
@@ -62,6 +64,8 @@ except Exception:
     pass
 
 app = FastAPI(title="WhatsApp Bot Internal API", lifespan=_lifespan)
+# Expose application assets only, never design references or data directories.
+app.mount("/assets", StaticFiles(directory=Path(__file__).resolve().parent / "static" / "assets"), name="admin-assets")
 
 
 class IncomingMessage(BaseModel):
@@ -69,6 +73,15 @@ class IncomingMessage(BaseModel):
     body: str
     msg_id: Optional[str] = None
     timestamp: Optional[str] = None
+
+
+class DeliveryReceipt(BaseModel):
+    conversation_id: Optional[int] = None
+    whatsapp_msg_id: Optional[str] = None
+    status: str
+    error: Optional[str] = None
+    error_code: Optional[str] = None
+    phone: Optional[str] = None
 
 
 _message_handler = None
@@ -91,6 +104,33 @@ async def receive_message(msg: IncomingMessage):
         return {"action": "ignore", "reason": "error"}
 
 
+@app.post("/webhook/delivery")
+async def receive_delivery(receipt: DeliveryReceipt):
+    """Idempotent delivery receipt from the bridge.
+
+    The bridge sends instant replies itself, then reports the real platform
+    message id and status here. Repeating a receipt is a no-op and never
+    creates a second conversation row.
+    """
+    if receipt.status not in ("sent", "failed", "unknown"):
+        return {"ok": False, "changed": False,
+                "error": "status must be sent, failed or unknown"}
+    from send_service import apply_delivery_receipt
+    result = apply_delivery_receipt(
+        receipt.conversation_id,
+        receipt.status,
+        whatsapp_msg_id=receipt.whatsapp_msg_id,
+        error=receipt.error or receipt.error_code,
+        whatsapp_msg_id_lookup=receipt.whatsapp_msg_id,
+    )
+    logger.info(
+        "[delivery] conversation=%s status=%s msg_id=%s changed=%s",
+        receipt.conversation_id, receipt.status, receipt.whatsapp_msg_id,
+        result.get("changed"),
+    )
+    return result
+
+
 @app.post("/webhook/qr")
 async def receive_qr(data: dict):
     from qr_state import set_pending_qr, clear_pending_qr
@@ -109,17 +149,38 @@ async def health():
     return {"status": "ok"}
 
 
+def _admin_html_path() -> Path:
+    """Locate admin.html for both frozen and source runs.
+
+    Source runs keep it at ``<repo>/src/static/admin.html``. The frozen
+    fallback is kept only for compatibility with previously packaged builds.
+
+    Note this is NOT derivable from ``config.get_bundle_dir()``: in source mode
+    that returns the repo root, so ``repo/static/admin.html`` does not exist and
+    ``/`` used to answer 500 even though the backend was healthy.
+    """
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS) / "static" / "admin.html"
+    return Path(__file__).resolve().parent / "static" / "admin.html"
+
+
 @app.get("/")
 async def admin_dashboard():
-    from pathlib import Path
-    from config import get_bundle_dir
-    admin_html = get_bundle_dir() / "static" / "admin.html"
+    admin_html = _admin_html_path()
     if admin_html.exists():
-        from fastapi.responses import HTMLResponse
         return HTMLResponse(content=admin_html.read_text(encoding="utf-8"))
-    # Fallback
-    from fastapi.responses import HTMLResponse
-    return HTMLResponse(content="<h1>Admin panel not found</h1>", status_code=500)
+
+    # Older bundles may still place the file under the bundle dir.
+    from config import get_bundle_dir
+    fallback = get_bundle_dir() / "static" / "admin.html"
+    if fallback.exists():
+        return HTMLResponse(content=fallback.read_text(encoding="utf-8"))
+
+    logger.error("Admin panel not found; looked at %s and %s", admin_html, fallback)
+    return HTMLResponse(
+        content=f"<h1>Admin panel not found</h1><pre>{html.escape(str(admin_html))}</pre>",
+        status_code=500,
+    )
 
 
 # Register admin API routes

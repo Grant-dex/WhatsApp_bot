@@ -1,24 +1,13 @@
 data/
 logs/
 .env
-product_specs.txt
-src/config.yaml
+.venv/
 __pycache__/
 *.pyc
 .DS_Store
-__MACOSX__/
-*.swp
-*.swo
-
-# Node
 bridge/node_modules/
-desktop/node_modules/
 
-# Build output
-dist/
-build/
-desktop/dist/
-
-# IDE
-.vscode/
-.idea/
+# ── 本地素材 / 无关项目，不入库 ──
+starry-night-flight/
+starry-night-film/
+*.mp4

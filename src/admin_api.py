@@ -18,9 +18,14 @@ logger = logging.getLogger(__name__)
 from fastapi import APIRouter, File, Query, UploadFile
 
 from config import get_config, get_data_dir
-from database import get_connection, update_customer
+from database import get_connection, update_customer, get_daily_quota_usage
 from qr_state import get_pending_qr, clear_pending_qr
-from bot_state import is_paused, toggle_paused, set_paused
+from bot_state import (
+    is_paused, toggle_paused, set_paused,
+    is_proactive_followups_enabled, is_proactive_followups_configured,
+    set_proactive_followups_enabled,
+)
+from send_service import check_proactive_eligibility, send_followup_now, send_manual_message
 
 _ocr_instance = None
 
@@ -88,6 +93,7 @@ async def save_setup(data: dict):
 
 @router.get("/dashboard")
 async def dashboard():
+    from workspace_service import workspace_overview
     conn = get_connection()
     today = datetime.now().strftime("%Y-%m-%d")
     now_iso = datetime.now().isoformat()
@@ -95,9 +101,11 @@ async def dashboard():
     total = conn.execute("SELECT COUNT(*) FROM customers").fetchone()[0]
     active = conn.execute("SELECT COUNT(*) FROM customers WHERE status='active'").fetchone()[0]
 
-    # Today's stats
+    # Today's stats. Only confirmed sends count as replies; pending/unknown rows
+    # must not inflate the dashboard.
     today_ai_replies = conn.execute(
-        "SELECT COUNT(*) FROM conversations WHERE ai_generated=1 AND direction='outbound' AND date(sent_at)=?",
+        "SELECT COUNT(*) FROM conversations WHERE ai_generated=1 AND direction='outbound' "
+        "AND status='sent' AND date(sent_at)=?",
         (today,)
     ).fetchone()[0]
     today_inbound = conn.execute(
@@ -121,15 +129,18 @@ async def dashboard():
     failed_fu_today = conn.execute(
         "SELECT COUNT(*) FROM sent_followups WHERE status='failed' AND date(sent_at)=?", (today,)
     ).fetchone()[0]
+    unknown_fu_today = conn.execute(
+        "SELECT COUNT(*) FROM sent_followups WHERE status='unknown' AND date(sent_at)=?", (today,)
+    ).fetchone()[0]
 
     total_schedules = conn.execute("SELECT COUNT(*) FROM follow_up_schedule WHERE active=1").fetchone()[0]
     total_conv = conn.execute("SELECT COUNT(*) FROM conversations").fetchone()[0]
 
     # Recently failed sends
     failed_recent = conn.execute(
-        "SELECT c.name, c.phone, sf.error_message, sf.sent_at FROM sent_followups sf "
+        "SELECT c.id AS customer_id, c.name, c.phone, sf.error_message, sf.sent_at, sf.status FROM sent_followups sf "
         "JOIN customers c ON sf.customer_id=c.id "
-        "WHERE sf.status='failed' ORDER BY sf.sent_at DESC LIMIT 5"
+        "WHERE sf.status IN ('failed','unknown') ORDER BY sf.sent_at DESC LIMIT 5"
     ).fetchall()
 
     # Recently active customers
@@ -158,7 +169,7 @@ async def dashboard():
             "today_ai_replies": today_ai_replies, "today_inbound": today_inbound,
             "due_today": due_today, "due_overdue": due_overdue,
             "sent_fu_total": sent_fu_total, "sent_fu_today": sent_fu_today,
-            "failed_fu_today": failed_fu_today,
+            "failed_fu_today": failed_fu_today, "unknown_fu_today": unknown_fu_today,
             "total_schedules": total_schedules, "total_conversations": total_conv,
         },
         "bridge": bridge,
@@ -169,6 +180,7 @@ async def dashboard():
             for r in recent_active
         ],
         "upcoming": [{"date": r["dt"], "count": r["cnt"]} for r in upcoming],
+        "workspace": workspace_overview(),
     }
 
 
@@ -644,21 +656,15 @@ async def conversations_list(
 
 @router.get("/customers-with-conversations")
 async def customers_with_conversations():
-    conn = get_connection()
-    rows = conn.execute(
-        "SELECT c.id, c.name, c.phone, c.company, c.status, "
-        "MAX(conv.sent_at) as last_msg, COUNT(conv.id) as msg_count "
-        "FROM customers c JOIN conversations conv ON c.id=conv.customer_id "
-        "GROUP BY c.id ORDER BY last_msg DESC LIMIT 50"
-    ).fetchall()
-    return [dict(r) for r in rows]
+    from workspace_service import conversation_workspace
+    return conversation_workspace()
 
 
 # ── Follow-ups ─────────────────────────────────────────────────────────────────
 
 @router.get("/followups")
 async def followups(
-    filter_type: str = Query("due", description="due | today_sent | failed | paused"),
+    filter_type: str = Query("due", description="due | today_sent | failed | unknown | paused"),
 ):
     conn = get_connection()
     now_iso = datetime.now().isoformat()
@@ -683,6 +689,12 @@ async def followups(
             "SELECT sf.*, c.name, c.phone FROM sent_followups sf "
             "JOIN customers c ON sf.customer_id=c.id "
             "WHERE sf.status='failed' ORDER BY sf.sent_at DESC LIMIT 50"
+        ).fetchall()
+    elif filter_type == "unknown":
+        rows = conn.execute(
+            "SELECT sf.*, c.name, c.phone FROM sent_followups sf "
+            "JOIN customers c ON sf.customer_id=c.id "
+            "WHERE sf.status='unknown' ORDER BY sf.sent_at DESC LIMIT 50"
         ).fetchall()
     elif filter_type == "paused":
         rows = conn.execute(
@@ -721,60 +733,66 @@ async def toggle_followup(schedule_id: int):
 
 
 @router.post("/followups/{schedule_id}/send-now")
-async def send_followup_now(schedule_id: int):
-    """Manually trigger a followup message for a schedule."""
-    from database import record_followup, save_message, update_followup_schedule
-    from followup import generate_followup_message
-    from bridge_client import send_message
+async def send_followup_now_endpoint(schedule_id: int, data: dict | None = None):
+    """Manually trigger one follow-up through the unified send service.
 
-    conn = get_connection()
-    row = conn.execute(
-        "SELECT fs.*, c.name, c.phone, c.company, c.notes, c.tags FROM follow_up_schedule fs "
-        "JOIN customers c ON fs.customer_id=c.id WHERE fs.id=?", (schedule_id,)
-    ).fetchone()
-    if not row:
-        return {"error": "not found"}
-
-    customer = dict(row)
-    message = generate_followup_message(customer)
-
-    result = await send_message(customer["phone"], message)
-    cid = customer["customer_id"]
-
-    if result.get("status") == "sent":
-        conv_id = save_message(cid, "outbound", message, ai_generated=True)
-        record_followup(cid, schedule_id, conv_id, status="sent")
-        update_followup_schedule(schedule_id)
-        return {"ok": True, "status": "sent", "message": message}
-    else:
-        record_followup(cid, schedule_id, None, status="failed",
-                        error_message=result.get("error", "unknown"))
-        return {"ok": False, "status": "failed", "error": result.get("error", "unknown")}
+    The same eligibility checks and atomic daily quota as the schedulers are
+    used. When a check is overridable (for example the automatic switch is off),
+    the response includes ``overridable_reasons``; the caller must retry with
+    an explicit ``overrides`` list. Quota, pause, contact status and inactive
+    schedules can never be overridden.
+    """
+    data = data or {}
+    overrides = data.get("overrides") or []
+    if not isinstance(overrides, list):
+        return {"ok": False, "status": "invalid_request",
+                "error": "overrides must be a list"}
+    result = await send_followup_now(schedule_id, manual=True,
+                                     overrides=[str(x) for x in overrides])
+    result["overrides_requested"] = overrides
+    return result
 
 
 @router.post("/send-manual")
 async def send_manual(data: dict):
-    phone = data.get("phone", "").strip()
-    message = data.get("message", "").strip()
+    """Send a human-written chat message.
+
+    This is a human conversation action, not an automated follow-up: it is
+    allowed while the bot is paused and does not consume the proactive quota.
+    It still records pending/sent/failed/unknown consistently.
+    """
+    phone = (data.get("phone") or "").strip()
+    message = (data.get("message") or "").strip()
     customer_id = data.get("customer_id")
     if not phone or not message:
-        return {"error": "phone and message required"}
+        return {"ok": False, "status": "invalid_request",
+                "error": "phone and message required"}
 
     try:
-        async with httpx.AsyncClient(timeout=30.0, trust_env=False) as client:
-            resp = await client.post("http://127.0.0.1:3001/send", json={"phone": phone, "message": message})
-            resp.raise_for_status()
-            result = resp.json()
-        if customer_id:
-            conn = get_connection()
-            conn.execute(
-                "INSERT INTO conversations(customer_id, direction, content, ai_generated) VALUES(?,?,?,0)",
-                (customer_id, "outbound", message)
-            )
-            conn.commit()
-        return {"ok": True, "bridge_result": result}
+        customer_id = int(customer_id) if customer_id else None
+    except (TypeError, ValueError):
+        return {"ok": False, "status": "invalid_request", "error": "invalid customer_id"}
+
+    conn = get_connection()
+    if customer_id is not None:
+        if not conn.execute("SELECT id FROM customers WHERE id=?", (customer_id,)).fetchone():
+            return {"ok": False, "status": "invalid_request", "error": "customer not found"}
+    else:
+        row = conn.execute("SELECT id FROM customers WHERE phone=?", (phone,)).fetchone()
+        if row:
+            customer_id = row["id"]
+
+    try:
+        result = await send_manual_message(customer_id, phone, message)
     except Exception as e:
-        return {"ok": False, "error": str(e)}
+        logger.error("Manual send failed: %s", e, exc_info=True)
+        return {"ok": False, "status": "failed", "error": str(e)}
+    result["bridge_result"] = {
+        "status": result.get("status"),
+        "message_id": result.get("message_id"),
+        "error": result.get("error"),
+    }
+    return result
 
 
 # ── Batch Push helpers ────────────────────────────────────────────────────────
@@ -831,21 +849,121 @@ async def remove_customer_from_batch(schedule_id: int):
     return {"ok": True}
 
 
-@router.post("/followups/mark-batch-pushed")
-async def mark_batch_pushed():
-    """Mark that manual batch push was completed today."""
+def _due_schedule_ids(schedule_ids: list | None = None) -> list[dict]:
+    """Return active, due schedules (optionally restricted to selected ids)."""
+    conn = get_connection()
+    now_iso = datetime.now().isoformat()
+    sql = (
+        "SELECT fs.*, c.name, c.phone, c.company, c.status AS customer_status "
+        "FROM follow_up_schedule fs JOIN customers c ON fs.customer_id=c.id "
+        "WHERE fs.active=1 AND c.status='active' AND fs.next_followup_at<=?"
+    )
+    params: list = [now_iso]
+    if schedule_ids is not None:
+        cleaned = []
+        for sid in schedule_ids:
+            try:
+                cleaned.append(int(sid))
+            except (TypeError, ValueError):
+                continue
+        if not cleaned:
+            return []
+        sql += " AND fs.id IN (" + ",".join("?" for _ in cleaned) + ")"
+        params.extend(cleaned)
+    sql += " ORDER BY fs.next_followup_at"
+    return [dict(r) for r in conn.execute(sql, params).fetchall()]
+
+
+@router.post("/followups/batch/start")
+async def start_batch_push(data: dict | None = None):
+    """Confirm and start a manual batch.
+
+    Only a confirmed, non-empty, eligible batch updates today's
+    ``last_batch_push_date`` marker. Cancelling in the UI never calls this
+    endpoint; an empty queue, a pause, an exhausted quota or a non-overridable
+    blocker returns without marking the day.
+    """
+    data = data or {}
+    if data.get("confirmed") is not True:
+        return {"ok": False, "status": "not_confirmed", "marked": False,
+                "error": "用户尚未确认开始批量推送"}
+    overrides = data.get("overrides") or []
+    if not isinstance(overrides, list):
+        return {"ok": False, "status": "invalid_request", "marked": False,
+                "error": "overrides must be a list"}
+    overrides = [str(x) for x in overrides]
+
+    if is_paused():
+        return {"ok": False, "status": "blocked", "reason": "bot_paused",
+                "marked": False, "error": "机器人已暂停，无法开始批量推送"}
+
+    requested_ids = data.get("schedule_ids")
+    if requested_ids is not None and not isinstance(requested_ids, list):
+        return {"ok": False, "status": "invalid_request", "marked": False,
+                "error": "schedule_ids must be a list"}
+
+    due = _due_schedule_ids(requested_ids)
+    if not due:
+        return {"ok": False, "status": "empty", "marked": False,
+                "error": "没有待跟进的客户"}
+
+    # Check the first item with the unified policy. This catches the proactive
+    # switch and quiet hours before marking the day; the per-item send-now
+    # endpoint re-checks every customer immediately before sending.
+    first = due[0]
+    decision = check_proactive_eligibility(
+        {"status": first.get("customer_status"), "phone": first.get("phone")},
+        first, manual=True, overrides=overrides,
+    )
+    if not decision["allowed"]:
+        blocker = decision["blockers"][0]
+        return {"ok": False, "status": "blocked", "reason": blocker["code"],
+                "marked": False, "error": blocker["message"],
+                "blockers": decision["blockers"],
+                "overridable_reasons": decision["overridable_reasons"],
+                "overrides_applied": decision["overrides_applied"]}
+
+    cfg = get_config()
+    usage = get_daily_quota_usage()
+    if usage["total"] >= cfg.business.max_auto_replies_per_day:
+        return {"ok": False, "status": "blocked", "reason": "quota_exceeded",
+                "marked": False, "error": "今日主动跟进配额已用完"}
+
     from bot_state import mark_batch_pushed_today, _today_str
     mark_batch_pushed_today()
-    return {"ok": True, "date": _today_str()}
+    return {
+        "ok": True, "status": "started", "marked": True, "date": _today_str(),
+        "count": len(due), "schedule_ids": [s["id"] for s in due],
+        "overrides_applied": decision["overrides_applied"],
+    }
+
+
+@router.post("/followups/mark-batch-pushed")
+async def mark_batch_pushed(data: dict | None = None):
+    """Compatibility endpoint.
+
+    Kept for older clients, but now requires an explicit confirmation and a
+    non-empty due queue. Prefer ``/followups/batch/start``.
+    """
+    return await start_batch_push(data)
 
 
 @router.get("/followups/auto-batch-status")
 async def auto_batch_status():
     """Return whether today's batch push was already done manually."""
     from bot_state import was_batch_pushed_today, _today_str
+    cfg = get_config()
+    usage = get_daily_quota_usage()
     return {
         "manual_pushed_today": was_batch_pushed_today(),
         "date": _today_str(),
+        "proactive_followups_enabled": is_proactive_followups_enabled(),
+        "daily_quota": {
+            "limit": cfg.business.max_auto_replies_per_day,
+            "used": usage["used"],
+            "reserved": usage["reserved"],
+            "total": usage["total"],
+        },
     }
 
 # ── Product Docs ──────────────────────────────────────────────────────────────
@@ -1072,19 +1190,20 @@ async def clear_qr():
 async def bridge_status():
     status = await _get_bridge_status()
     status["qr_pending"] = get_pending_qr() is not None
-    # Read recent bridge log entries
-    import os
-    log_path = os.path.join(os.path.dirname(__file__), "..", "logs", "bot.log")
+    # Read recent bridge log entries from the same data-dir logs as /activity.
     bridge_events = []
     try:
-        import subprocess
-        result = subprocess.run(
-            ["grep", "-E", "WHATSAPP_READY|WHATSAPP_DISCONNECTED|Bridge.*exit|Bridge crashed",
-             log_path], capture_output=True, text=True, timeout=5
-        )
-        for line in result.stdout.strip().split("\n")[-30:]:
-            if line.strip():
-                bridge_events.append(line.strip())
+        for path in _activity_log_candidates():
+            with path.open("r", encoding="utf-8", errors="replace") as fh:
+                lines = fh.readlines()
+            for line in lines[-400:]:
+                line = line.rstrip("\n")
+                if "Bridge not started" in line:
+                    continue
+                if any(k in line for k in ("WHATSAPP_READY", "WHATSAPP_DISCONNECTED",
+                                           "Bridge", "bridge", "[WARNING]", "[ERROR]")):
+                    bridge_events.append(line)
+        bridge_events.sort(key=lambda line: line[:19])
     except Exception:
         pass
 
@@ -1129,22 +1248,75 @@ async def set_proxy(data: dict):
 
 # ── Bot Pause/Resume ───────────────────────────────────────────────────────────
 
+@router.get("/settings/proactive-followups")
+async def get_proactive_followups_setting():
+    """Backend source of truth for the user-facing proactive follow-up switch."""
+    cfg = get_config()
+    usage = get_daily_quota_usage()
+    return {
+        "enabled": is_proactive_followups_enabled(),
+        "configured": is_proactive_followups_configured(),
+        "scope": "automatic_proactive_followups",
+        "applies_to": ["followup_check_5m", "auto_batch_10am"],
+        "does_not_apply_to": ["instant_inbound_reply", "manual_chat_send"],
+        "daily_quota": {
+            "limit": cfg.business.max_auto_replies_per_day,
+            "used": usage["used"],
+            "reserved": usage["reserved"],
+            "total": usage["total"],
+        },
+    }
+
+
+@router.put("/settings/proactive-followups")
+async def update_proactive_followups_setting(data: dict):
+    if "enabled" not in data or not isinstance(data.get("enabled"), bool):
+        return {"ok": False, "error": "enabled (boolean) required"}
+    set_proactive_followups_enabled(data["enabled"])
+    logger.info("Proactive follow-ups switched %s", "on" if data["enabled"] else "off")
+    cfg = get_config()
+    usage = get_daily_quota_usage()
+    return {
+        "ok": True,
+        "enabled": data["enabled"],
+        "configured": True,
+        "scope": "automatic_proactive_followups",
+        "applies_to": ["followup_check_5m", "auto_batch_10am"],
+        "does_not_apply_to": ["instant_inbound_reply", "manual_chat_send"],
+        "daily_quota": {
+            "limit": cfg.business.max_auto_replies_per_day,
+            "used": usage["used"],
+            "reserved": usage["reserved"],
+            "total": usage["total"],
+        },
+    }
+
+
 @router.get("/bot-state")
 async def get_bot_state():
     dashboard_conn = get_connection()
     today = datetime.now().strftime("%Y-%m-%d")
     today_replies = dashboard_conn.execute(
-        "SELECT COUNT(*) FROM conversations WHERE ai_generated=1 AND direction='outbound' AND date(sent_at)=?",
+        "SELECT COUNT(*) FROM conversations WHERE ai_generated=1 AND direction='outbound' "
+        "AND status='sent' AND date(sent_at)=?",
         (today,)
     ).fetchone()[0]
     today_followups = dashboard_conn.execute(
         "SELECT COUNT(*) FROM sent_followups WHERE status='sent' AND date(sent_at)=?",
         (today,)
     ).fetchone()[0]
+    usage = get_daily_quota_usage()
     return {
         "paused": is_paused(),
+        "proactive_followups_enabled": is_proactive_followups_enabled(),
+        "proactive_followups_configured": is_proactive_followups_configured(),
         "today_ai_replies": today_replies,
         "today_followups": today_followups,
+        "daily_quota": {
+            "used": usage["used"], "reserved": usage["reserved"],
+            "total": usage["total"],
+            "limit": get_config().business.max_auto_replies_per_day,
+        },
     }
 
 
@@ -1159,7 +1331,10 @@ async def _get_bridge_status() -> dict:
     try:
         async with httpx.AsyncClient(timeout=3.0, trust_env=False) as client:
             resp = await client.get(f"http://{cfg.bridge.host}:{cfg.bridge.port}/status")
+            resp.raise_for_status()
             bs = resp.json()
+            if not isinstance(bs, dict) or not isinstance(bs.get("authenticated"), bool):
+                raise ValueError("Bridge returned an invalid status response")
             return {
                 "online": True,
                 "authenticated": bs.get("authenticated", False),
@@ -1252,6 +1427,7 @@ async def agent_customer_analysis(customer_id: int):
 
     return {
         "customer": dict(customer) if customer else None,
+        "computed_at": datetime.now().isoformat(),
         "score": score_data,
         "intent": intent_data,
         "memory": [dict(m) for m in memory],
@@ -1277,18 +1453,45 @@ async def trigger_strategy_eval():
 
 # ── Activity Log ───────────────────────────────────────────────────────────────
 
+def _activity_log_candidates() -> list[Path]:
+    """Return existing log files, newest first.
+
+    The desktop launcher writes ``<userData>/logs/backend.log``; the standalone
+    web runner writes ``web.log``; ``main.py`` writes ``logs/bot.log`` relative
+    to cwd. The old endpoint only looked at repo/logs/bot.log, so the UI could
+    show an empty "运行日志" page precisely when diagnostics were needed.
+    """
+    data_dir = get_data_dir()
+    candidates = [
+        data_dir / "logs" / "backend.log",
+        data_dir / "logs" / "web.log",
+        data_dir / "logs" / "bot.log",
+        Path(__file__).resolve().parent.parent / "logs" / "bot.log",
+    ]
+    existing: list[tuple[float, Path]] = []
+    for candidate in candidates:
+        try:
+            if candidate.is_file():
+                existing.append((candidate.stat().st_mtime, candidate))
+        except OSError:
+            continue
+    return [path for _, path in sorted(existing, reverse=True)]
+
+
 @router.get("/activity")
 async def activity_log(lines: int = Query(100, ge=10, le=500)):
-    import os, subprocess
-    log_path = os.path.join(os.path.dirname(__file__), "..", "logs", "bot.log")
+    from collections import deque
+    paths = _activity_log_candidates()
+    if not paths:
+        return {"lines": [], "source": None,
+                "error": "未找到日志文件（backend.log/web.log/bot.log）"}
     try:
-        result = subprocess.run(
-            ["tail", "-n", str(lines), log_path],
-            capture_output=True, text=True, timeout=5
-        )
-        log_lines = result.stdout.strip().split("\n")
+        log_lines = []
+        for log_path in paths:
+            with log_path.open("r", encoding="utf-8", errors="replace") as fh:
+                log_lines.extend(deque(fh, maxlen=min(max(lines * 20, 1000), 10000)))
         # Filter to INFO and above, skip DEBUG
-        filtered = [l for l in log_lines
+        filtered = [l.rstrip("\n") for l in log_lines
                     if ("[DEBUG]" not in l
                         and ("[INFO]" in l or "[ERROR]" in l or "[CRITICAL]" in l or "[WARNING]" in l))]
         # Filter out QR code Unicode block-art lines (between QR_RECEIVED and QR_END)
@@ -1305,9 +1508,10 @@ async def activity_log(lines: int = Query(100, ge=10, le=500)):
                 continue
             if not in_qr:
                 clean.append(l)
-        return {"lines": clean[-lines:]}
+        clean.sort(key=lambda line: line[:19])
+        return {"lines": clean[-lines:], "source": ", ".join(str(p) for p in paths)}
     except Exception as e:
-        return {"lines": [], "error": str(e)}
+        return {"lines": [], "source": ", ".join(str(p) for p in paths), "error": str(e)}
 
 
 # ── Orders ─────────────────────────────────────────────────────────────────────

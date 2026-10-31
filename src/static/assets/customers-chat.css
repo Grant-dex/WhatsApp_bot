@@ -1,0 +1,72 @@
+/* Customers + conversations, following references 02 and 03. */
+#page-customers .panel{padding:0 17px}
+#page-customers .toolbar{padding:18px 0 20px;border-bottom:0;flex-wrap:nowrap}
+#page-customers .toolbar .search-field{min-width:220px;flex:1}
+#page-customers .toolbar .flex-1{display:none}
+#page-customers .toolbar .input,#page-customers .toolbar .btn{height:44px}
+#page-customers .toolbar .btn{min-width:160px}
+#page-customers .toolbar select{width:190px!important}
+#page-customers .pagination{padding:17px 0;border-top:0;gap:14px}
+#page-customers #cust-header-info{margin-right:auto}
+#page-customers th:first-child{border-radius:5px 0 0 5px}
+#page-customers th:last-child{border-radius:0 5px 5px 0}
+#page-customers table{min-width:930px}
+#page-customers td{height:63px}
+#page-customers .person{gap:14px}
+#page-customers .avatar{width:40px;height:40px;font-size:14px}
+#page-customers .person-name{font-size:14px;font-weight:400;max-width:190px}
+#page-customers .table-actions{flex-wrap:nowrap;gap:7px}
+#page-customers .table-actions .btn-outline{color:var(--teal);background:#f7fbfc}
+#page-customers .table-actions .btn-danger{padding:0;width:29px;background:var(--red-bg);border-color:#ffd2d7}
+#page-customers .table-actions .btn-danger svg{width:15px;height:15px}
+#page-customers td.mono{font-family:var(--font);font-size:13px}
+.request-error{color:var(--red)}
+.request-error small{display:block;overflow-wrap:anywhere;margin:8px 0 14px}
+#page-customers [aria-busy=true]{opacity:.7}
+/* Separate the white customer list and conversation surface with a narrow gutter. */
+#page-conversations>.panel{background:transparent;border:0;overflow:visible}
+#page-conversations .conv-layout{height:calc(100vh - 160px);min-height:470px;gap:10px}
+#page-conversations .chat-list{width:30%;min-width:260px;border:1px solid var(--border);border-radius:7px;overflow:hidden;background:#fff}
+#page-conversations .chat-list-header{padding:16px 16px 12px}
+#page-conversations .chat-list-title{font-size:17px;margin-bottom:10px;justify-content:flex-start;gap:8px}
+#page-conversations .chat-list-title span{font-size:15px;color:var(--text)}
+#page-conversations .chat-list-title span:before{content:'('}
+#page-conversations .chat-list-title span:after{content:')'}
+#page-conversations .chat-list-search input{border-radius:5px;background:#fff;font-size:13px}
+#page-conversations .chat-item{padding:17px 13px;gap:10px;align-items:center;min-height:88px}
+#page-conversations .chat-item.active{background:#e0f6f1;border-left:0;padding-left:13px}
+#page-conversations .chat-item.active .chat-name{color:var(--text)}
+#page-conversations .chat-item .avatar{width:40px;height:40px;font-size:14px}
+#page-conversations .chat-name{font-size:14px;font-weight:650}
+#page-conversations .chat-time{font-size:11px}
+#page-conversations .chat-item-actions{opacity:1;gap:0}
+#page-conversations .chat-item-actions .btn{width:23px;height:28px}
+#page-conversations .chat-item-actions .btn svg{width:15px;height:15px}
+#page-conversations .chat-preview{font-size:12px}
+#page-conversations .chat-area{border:1px solid var(--border);border-radius:7px;background:#fff;min-width:0}
+#page-conversations .chat-header{padding:16px;gap:12px;flex-wrap:wrap;min-height:94px;align-items:flex-start}
+#page-conversations .chat-contact{gap:14px;flex:1;min-width:210px}
+#page-conversations .chat-contact>.avatar{width:50px;height:50px;font-size:18px}
+#page-conversations .chat-contact-name{font-size:19px;font-weight:650;overflow-wrap:anywhere}
+#page-conversations .chat-contact-meta{font-size:13px;max-width:300px}
+#page-conversations .chat-header-actions{gap:8px;justify-content:flex-start}
+#page-conversations .chat-followup{flex-direction:row;align-items:center;gap:10px;background:#fff;padding:7px 10px;border-radius:5px}
+#page-conversations .chat-followup svg{width:23px;height:23px;color:var(--teal);fill:none;stroke:currentColor;stroke-width:1.8}
+#page-conversations .chat-followup>div{display:flex;flex-direction:column;gap:2px}
+#page-conversations .chat-followup strong{font-size:12px;font-weight:400;color:var(--text2)}
+#page-conversations .chat-messages{background:#fff;padding:16px 17px;gap:5px}
+#page-conversations .chat-msg-wrap{margin-bottom:18px;gap:10px;align-items:flex-start}
+#page-conversations .chat-msg-wrap .avatar{align-self:flex-start;margin-top:3px}
+#page-conversations .chat-msg{font-size:14px;line-height:1.6;box-shadow:none;border-radius:8px;padding:11px 14px;max-width:86%;overflow-wrap:anywhere}
+#page-conversations .chat-msg.inbound{background:#edf3f5;border-color:transparent}
+#page-conversations .chat-msg.outbound{background:#ddf6ef;border-color:transparent}
+#page-conversations .chat-msg .msg-time{font-size:11px;white-space:normal;flex-wrap:wrap}
+#page-conversations .date-divider{margin:0 0 10px}
+#page-conversations .date-divider span{border-radius:8px;background:#f0f5f7;font-size:13px}
+#page-conversations .chat-input-area{padding:12px 16px;gap:8px;align-items:stretch}
+#page-conversations .chat-input-area textarea{min-height:66px;background:#fff;border-radius:6px;padding:12px;font-size:14px}
+#page-conversations .chat-input-area .btn{height:42px;margin-top:0;min-width:85px}
+.chat-sync-state:empty{display:none}.chat-sync-state{padding:7px 16px;font-size:12px;color:var(--orange);background:var(--orange-bg)}
+@media(max-width:1350px){#page-conversations .chat-list{width:31%;min-width:240px}#page-conversations .chat-header{gap:8px}#page-conversations .chat-contact{min-width:170px}#page-conversations .chat-header-actions{width:100%}#page-conversations .chat-followup{margin-left:auto}#page-customers .toolbar .btn{min-width:135px}#page-customers .toolbar select{width:155px!important}}
+@media(max-width:960px){#page-conversations .chat-list{width:100%;min-width:0}#page-conversations .chat-area{width:100%}#page-conversations .conv-layout{min-height:430px}#page-customers .toolbar{flex-wrap:wrap}#page-customers .toolbar .search-field{flex-basis:100%}}
+@media(max-width:600px){#page-customers .panel{padding:0 10px}#page-customers .toolbar .btn{min-width:0}#page-customers .toolbar select{flex:1}#page-customers .pagination #cust-header-info{width:100%}#page-conversations .chat-header-actions{gap:6px}#page-conversations .chat-followup{order:2;margin-left:0;max-width:100%;white-space:normal}#page-conversations .chat-contact-meta{max-width:200px}#page-conversations .chat-msg{max-width:90%}#page-conversations .chat-input-area{padding:10px}#page-conversations .chat-input-area .btn{min-width:65px;padding:0 10px}}

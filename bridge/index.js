@@ -2,6 +2,7 @@ const express = require('express');
 const qrcode = require('qrcode-terminal');
 const fs = require('fs');
 const path = require('path');
+const sendResult = require('./lib/send-result');
 
 let makeWASocket, useMultiFileAuthState, DisconnectReason;
 
@@ -43,13 +44,48 @@ function getProxyAgent() {
     catch (e) { console.error('Proxy agent failed:', e.message); return undefined; }
 }
 
-async function notifyPython(path, body) {
+async function notifyPython(path, body, options = {}) {
+    const retries = Math.max(0, options.retries || 0);
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            const r = await fetch(`${PYTHON_API}${path}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            if (r.ok) return true;
+        } catch (e) { /* ignore - Python may not be up yet */ }
+        if (attempt < retries) {
+            await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, attempt)));
+        }
+    }
+    return false;
+}
+
+async function sendText(phone, message, timeoutMs = 15000) {
+    if (!clientReady || !sock) {
+        return sendResult.failedResult('桥接未认证，请先扫码登录 WhatsApp', 'bridge_unauthenticated');
+    }
+    const cleaned = sendResult.cleanPhone(phone);
+    if (!cleaned) {
+        return sendResult.failedResult('清理后电话号码为空', 'invalid_phone');
+    }
+    const jid = cleaned.includes('@') ? cleaned : `${cleaned}@s.whatsapp.net`;
     try {
-        await fetch(`${PYTHON_API}${path}`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
-    } catch (e) { /* ignore - Python may not be up yet */ }
+        const sent = await Promise.race([
+            sock.sendMessage(jid, { text: message }),
+            sendResult.timeoutPromise(timeoutMs),
+        ]);
+        return sendResult.sentResult(sent, jid);
+    } catch (e) {
+        const result = sendResult.fromSendError(e);
+        if (result.error_code === 'timeout') {
+            const proxy = process.env.HTTPS_PROXY || process.env.https_proxy;
+            result.error = proxy
+                ? `消息发送超时（结果待确认）。已配置代理 ${proxy}，请检查代理与 WhatsApp 连接后人工核对。`
+                : '消息发送超时（结果待确认）。未配置代理，请检查网络后人工核对。';
+        }
+        return result;
+    }
 }
 
 async function forwardToPython(phone, body, msgId, timestamp) {
@@ -60,8 +96,20 @@ async function forwardToPython(phone, body, msgId, timestamp) {
         });
         const result = await r.json(); console.log("[webhook] response:", JSON.stringify(result));
         if (result.action === 'reply' && result.message) {
-            const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
-            console.log("[send] sending to", jid); await sock.sendMessage(jid, { text: result.message }); console.log("[send] done");
+            const delivery = await sendText(phone, result.message, 15000);
+            const receipt = {
+                conversation_id: result.conversation_id || null,
+                whatsapp_msg_id: delivery.message_id || null,
+                status: delivery.status,
+                error: delivery.error || null,
+                error_code: delivery.error_code || null,
+            };
+            if (receipt.conversation_id) {
+                const delivered = await notifyPython('/webhook/delivery', receipt, { retries: 3 });
+                if (!delivered) console.error('[webhook] delivery receipt not acknowledged:', JSON.stringify(receipt));
+            }
+            console.log("[send] reply delivery status:", delivery.status);
+            return { ...result, delivery_status: delivery.status };
         }
         return result;
     } catch (e) { console.error('[webhook] forward failed:', e.message, e.stack); return { action: 'ignore', reason: 'fetch failed' }; }
@@ -183,47 +231,22 @@ app.get('/chats', (_, r) => {
 });
 app.get('/status', (_, r) => r.json({ authenticated: clientReady, phone: sock?.user?.id?.split(':')[0] || null }));
 app.post('/send', async (req, res) => {
-    if (!clientReady || !sock) return res.status(503).json({ status: 'failed', error: '桥接未认证，请先扫码登录 WhatsApp' });
+    if (!clientReady || !sock) return res.status(503).json(sendResult.failedResult('桥接未认证，请先扫码登录 WhatsApp', 'bridge_unauthenticated'));
     let { phone, message } = req.body;
-    if (!phone || !message) return res.status(400).json({ status: 'failed', error: '电话号码和消息内容不能为空' });
+    if (!phone || !message) return res.status(400).json(sendResult.failedResult('电话号码和消息内容不能为空', 'invalid_request'));
     // ── Robust phone cleaning ──────────────────────────────
-    // Strip invisible/control Unicode chars using \u escapes
-    phone = phone.replace(/[\u200B-\u200F\u2028-\u202E\u2060-\u2069\uFEFF\uFFF0-\uFFFF]/g, '');
-    // Strip leading/trailing + signs
-    phone = phone.replace(/^\++/, '').replace(/\++$/, '');
-    // Remove @lid, @c.us, @s.whatsapp.net suffixes
-    phone = phone.replace(/@lid$/, '').replace(/@c\.us$/, '').replace(/@s\.whatsapp\.net$/, '');
-    // Remove spaces, dashes, parentheses
-    phone = phone.replace(/[\s\-\(\)]/g, '');
-    // Strip any non-digit leading chars
-    phone = phone.replace(/^[^\d]+/, '');
-    // Final trim
-    phone = phone.trim();
-    if (!phone) return res.status(400).json({ status: 'failed', error: '清理后电话号码为空' });
+    const cleaned = sendResult.cleanPhone(phone);
+    if (!cleaned) return res.status(400).json(sendResult.failedResult('清理后电话号码为空', 'invalid_phone'));
+    phone = cleaned;
     // Transform hardcoded followup template → first name + varied human-like message
     message = transformFollowupMessage(message, phone);
     const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
     console.log('[send] cleaned phone:', phone, '-> jid:', jid);
-    try {
-        await Promise.race([
-            sock.sendMessage(jid, { text: message }),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('send timeout')), 15000))
-        ]);
-        res.json({ status: 'sent' });
-    } catch (e) {
-        let errorMsg = e.message || 'unknown';
-        // Provide actionable error messages
-        if (errorMsg === 'send timeout') {
-            const proxy = process.env.HTTPS_PROXY || process.env.https_proxy;
-            if (proxy) {
-                errorMsg = `消息发送超时（15秒）。已配置代理 ${proxy}，请检查：1) 代理是否正常运行 2) 代理地址和端口是否正确 3) WhatsApp 网络是否通畅`;
-            } else {
-                errorMsg = '消息发送超时（15秒）。未配置代理！国内网络可能无法直连 WhatsApp。请在桥接状态页面配置代理';
-            }
-        }
-        // Return 200 so the Python backend reads the JSON body instead of throwing on status code
-        res.json({ status: 'failed', error: errorMsg });
-    }
+    const result = await sendText(phone, message, 15000);
+    // Always return 200 with a structured status so the Python backend can
+    // distinguish sent / failed / unknown. Status codes are reserved for
+    // definite request-level failures.
+    res.json(result);
 });
 
 // ── Document sending ──────────────────────────────────────
@@ -234,12 +257,7 @@ app.post('/send-document', async (req, res) => {
         return res.status(400).json({ status: 'failed', error: '缺少必填字段：phone, filename, file_data_base64' });
     }
     // Same robust phone cleaning as /send
-    phone = phone.replace(/[​-‏ -‮⁠-⁩﻿￰-￿]/g, '');
-    phone = phone.replace(/^\++/, '').replace(/\++$/, '');
-    phone = phone.replace(/@lid$/, '').replace(/@c\.us$/, '').replace(/@s\.whatsapp\.net$/, '');
-    phone = phone.replace(/[\s\-\(\)]/g, '');
-    phone = phone.replace(/^[^\d]+/, '');
-    phone = phone.trim();
+    phone = sendResult.cleanPhone(phone);
     if (!phone) return res.status(400).json({ status: 'failed', error: '清理后电话号码为空' });
     const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
     let fileBuffer;

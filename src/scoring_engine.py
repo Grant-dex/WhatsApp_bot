@@ -74,7 +74,8 @@ def score_customer(customer_id: int) -> dict:
 
     # ── Engagement depth: total conversation turns ──
     total_conv = conn.execute(
-        "SELECT COUNT(*) as cnt FROM conversations WHERE customer_id=?",
+        "SELECT COUNT(*) as cnt FROM conversations WHERE customer_id=? "
+        "AND status IN ('received','sent')",
         (customer_id,)
     ).fetchone()["cnt"]
     depth_pts = min(total_conv // 2, MAX_DEPTH_PTS)
@@ -82,7 +83,7 @@ def score_customer(customer_id: int) -> dict:
     # ── Reply rate: inbound replies / outbound messages ──
     outbound_cnt = conn.execute(
         "SELECT COUNT(*) as cnt FROM conversations "
-        "WHERE customer_id=? AND direction='outbound'",
+        "WHERE customer_id=? AND direction='outbound' AND status='sent'",
         (customer_id,)
     ).fetchone()["cnt"]
     inbound_cnt = conn.execute(

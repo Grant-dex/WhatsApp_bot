@@ -1,0 +1,40 @@
+test_activity_log_reads_the_actual_data_dir_log (test_admin_assets.AdminAssetsTest.test_activity_log_reads_the_actual_data_dir_log) ... ok
+test_admin_panel_is_served_from_source (test_admin_assets.AdminAssetsTest.test_admin_panel_is_served_from_source) ... ok
+test_dashboard_api_works_on_an_empty_database (test_admin_assets.AdminAssetsTest.test_dashboard_api_works_on_an_empty_database) ... ok
+test_split_assets_and_private_references (test_admin_assets.AdminAssetsTest.test_split_assets_and_private_references) ... ok
+test_batch_start_does_not_mark_when_paused (test_reliability.AdminApiTests.test_batch_start_does_not_mark_when_paused) ... /workspace/ui-project/WhatsApp_bot-web/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+  from starlette.testclient import TestClient as TestClient  # noqa
+ok
+test_batch_start_requires_confirmation_and_non_empty_queue (test_reliability.AdminApiTests.test_batch_start_requires_confirmation_and_non_empty_queue) ... ok
+test_dashboard_counts_only_sent_and_shows_unknown_separately (test_reliability.AdminApiTests.test_dashboard_counts_only_sent_and_shows_unknown_separately) ... ok
+test_proactive_setting_persists_across_reads (test_reliability.AdminApiTests.test_proactive_setting_persists_across_reads) ... ok
+test_send_manual_endpoint_records_delivery_state (test_reliability.AdminApiTests.test_send_manual_endpoint_records_delivery_state) ... ok
+test_send_now_endpoint_uses_unified_service (test_reliability.AdminApiTests.test_send_now_endpoint_uses_unified_service) ... ok
+test_connect_error_is_definite_failure (test_reliability.BridgeResultTests.test_connect_error_is_definite_failure) ... Bridge unreachable for +8613900000007: down
+ok
+test_sent_result_keeps_platform_message_id (test_reliability.BridgeResultTests.test_sent_result_keeps_platform_message_id) ... ok
+test_timeout_is_unknown_not_failed (test_reliability.BridgeResultTests.test_timeout_is_unknown_not_failed) ... Bridge send timed out (result unknown) for +8613900000006: timeout
+ok
+test_unauthenticated_bridge_is_failed (test_reliability.BridgeResultTests.test_unauthenticated_bridge_is_failed) ... ok
+test_duplicate_inbound_is_stored_once_and_has_no_action (test_reliability.InboundHandlingTests.test_duplicate_inbound_is_stored_once_and_has_no_action) ... ok
+test_instant_reply_is_pending_until_callback (test_reliability.InboundHandlingTests.test_instant_reply_is_pending_until_callback) ... ok
+test_opted_out_stores_inbound_but_never_replies (test_reliability.InboundHandlingTests.test_opted_out_stores_inbound_but_never_replies) ... ok
+test_pause_stores_inbound_without_llm_or_reply (test_reliability.InboundHandlingTests.test_pause_stores_inbound_without_llm_or_reply) ... ok
+test_unknown_receipt_is_distinct_from_failure (test_reliability.InboundHandlingTests.test_unknown_receipt_is_distinct_from_failure) ... ok
+test_manual_chat_is_independent_of_proactive_switch_and_quota (test_reliability.ManualSendTests.test_manual_chat_is_independent_of_proactive_switch_and_quota) ... ok
+test_legacy_database_upgrade_preserves_rows_and_is_idempotent (test_reliability.MigrationTests.test_legacy_database_upgrade_preserves_rows_and_is_idempotent) ... ok
+test_concurrent_manual_and_auto_paths_cannot_exceed_quota (test_reliability.ProactiveSendTests.test_concurrent_manual_and_auto_paths_cannot_exceed_quota) ... ok
+test_contact_status_and_inactive_schedule_are_not_overridable (test_reliability.ProactiveSendTests.test_contact_status_and_inactive_schedule_are_not_overridable) ... ok
+test_failure_releases_quota_and_unknown_keeps_it (test_reliability.ProactiveSendTests.test_failure_releases_quota_and_unknown_keeps_it) ... Follow-up result unknown for schedule 2; no automatic retry
+ok
+test_manual_override_is_explicit_and_cannot_override_pause (test_reliability.ProactiveSendTests.test_manual_override_is_explicit_and_cannot_override_pause) ... ok
+test_pause_during_batch_stops_remaining_sends (test_reliability.ProactiveSendTests.test_pause_during_batch_stops_remaining_sends) ... ok
+test_quiet_hours_is_overridable_only_by_manual_action (test_reliability.ProactiveSendTests.test_quiet_hours_is_overridable_only_by_manual_action) ... ok
+test_quota_reservation_is_atomic_across_threads (test_reliability.ProactiveSendTests.test_quota_reservation_is_atomic_across_threads) ... ok
+test_same_schedule_cannot_be_sent_twice_concurrently (test_reliability.ProactiveSendTests.test_same_schedule_cannot_be_sent_twice_concurrently) ... ok
+test_switch_off_blocks_automatic_send_and_scheduler_ticks (test_reliability.ProactiveSendTests.test_switch_off_blocks_automatic_send_and_scheduler_ticks) ... ok
+
+----------------------------------------------------------------------
+Ran 30 tests in 4.281s
+
+OK

@@ -1,0 +1,17 @@
+✔ cleanPhone strips invisible characters, suffixes and punctuation (0.939818ms)
+✔ sentResult keeps the real platform message id (0.138603ms)
+✔ timeouts are unknown, not failed (0.220924ms)
+✔ ordinary send errors are definite failures (0.15676ms)
+✔ failedResult and unknownResult do not claim a platform id (0.139805ms)
+✔ admin.html inline scripts parse (4.578401ms)
+✔ admin router suppresses self-triggered hashchange and has a load error fallback (0.315443ms)
+✔ a failed state request never keeps showing 运行中 (0.312358ms)
+✔ setup state is unknown (not "configured") when the backend is unreachable (0.199563ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 63.864419

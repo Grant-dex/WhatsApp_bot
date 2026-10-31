@@ -1,0 +1,72 @@
+/* Follow-up workspace: reference 04, sharing the confirmed dashboard tokens. */
+#page-followups .followup-automation{display:flex;align-items:center;gap:28px;padding:18px 22px;min-height:100px}
+#page-followups .followup-automation-main{flex:none;min-width:325px;padding-right:28px;border-right:1px solid var(--border)}
+#page-followups .followup-automation-title{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+#page-followups .followup-automation-title h3{font-size:20px;line-height:1.4;margin:0;font-weight:650}
+#page-followups .followup-automation-frequency{font-size:14px;margin-top:7px}
+#page-followups #auto-batch-info{font-size:14px;line-height:1.65;max-width:670px}
+#page-followups #auto-batch-status{border-radius:8px;padding:4px 14px;min-width:70px;justify-content:center}
+#page-followups #auto-batch-status::before{display:none}
+#page-followups .switch{width:50px;height:28px}
+#page-followups .switch .slider::before{width:22px;height:22px;top:2px;left:2px}
+#page-followups .switch input:checked+.slider::before{transform:translateX(22px)}
+#page-followups .batch-summary{background:#fff;border:1px solid var(--border);box-shadow:none;border-radius:8px;padding:16px 22px;margin:0 0 14px;min-height:80px;gap:16px}
+#page-followups .batch-summary-title{font-size:18px;font-weight:550;line-height:1.4}
+#page-followups .batch-summary-title strong{font-size:28px;vertical-align:-2px;margin-right:3px}
+#page-followups .batch-summary-title .overdue{font-size:17px;color:var(--red);font-weight:600}
+#page-followups .batch-summary-sub{font-size:12px;margin-top:3px}
+#page-followups .batch-summary-actions .btn-primary{min-width:135px;gap:10px}
+#page-followups .followup-schedules{padding:0 18px 10px}
+#page-followups .followup-tabs{display:flex;gap:26px;align-items:center;min-height:58px;padding:10px 0 8px}
+#page-followups .followup-tab{font:inherit;font-size:18px;color:#58707d;white-space:nowrap;background:none;border:0;border-bottom:3px solid transparent;padding:6px 0;font-weight:550}
+#page-followups .followup-tab.active{color:var(--text);border-bottom-color:var(--teal);font-weight:650}
+#page-followups .followup-tab span{font-size:14px}
+#page-followups .followup-schedules th{height:42px}
+#page-followups .followup-schedules td{height:54px}
+#page-followups .followup-schedules th:first-child{width:29%;border-radius:5px 0 0 5px}
+#page-followups .followup-schedules th:last-child{width:180px;border-radius:0 5px 5px 0}
+#page-followups .followup-schedules .person-main{display:flex;align-items:center;gap:16px;min-width:0}
+#page-followups .followup-schedules .person-sub{font-size:13px;max-width:150px;margin:0}
+#page-followups .followup-schedules .person-name{font-weight:500;max-width:180px;display:block}
+#page-followups .followup-schedules .badge{font-size:12px}
+#page-followups .table-actions{gap:10px;flex-wrap:nowrap}
+#page-followups .table-actions .btn{min-width:74px}
+#page-followups .table-actions .btn-primary{min-width:94px}
+#page-followups .followup-lower{gap:14px;align-items:start}
+#page-followups .followup-lower .panel{padding:0 16px 12px}
+#page-followups .followup-lower .panel-header{padding:15px 0 12px;gap:8px}
+#page-followups .followup-lower h3{font-size:18px}
+#page-followups .followup-lower th{font-size:12px;padding:8px 9px}
+#page-followups .followup-lower td{font-size:12px;padding:9px;vertical-align:middle}
+#page-followups .followup-lower .mono{font-size:11px}
+#page-followups .followup-lower .person{gap:9px}
+#page-followups .followup-lower .person-name{font-size:13px;max-width:135px;white-space:normal;overflow-wrap:anywhere}
+#page-followups .followup-lower .panel-note{margin-top:8px;padding:8px 10px;font-size:12px;color:var(--orange);background:var(--orange-bg);border:0;border-radius:5px;line-height:1.6}
+#page-followups .followup-module-error{background:var(--red-bg);color:var(--red);padding:10px 12px;font-size:13px;line-height:1.6;border-radius:5px;margin:8px 0;overflow-wrap:anywhere}
+#page-followups .batch-push-panel{box-shadow:none;border-radius:8px;background:#fff;padding:18px}
+#page-followups .batch-customer-list{max-height:280px;overflow:auto}
+#page-followups .batch-customer-item{min-width:0;gap:12px}
+#page-followups .batch-customer-item .cust-name{min-width:0;overflow-wrap:anywhere}
+#page-followups .batch-customer-item button{flex:none}
+@media(max-width:1350px){
+ #page-followups .followup-automation{gap:20px;padding:16px 18px}
+ #page-followups .followup-automation-main{min-width:300px;padding-right:20px}
+ #page-followups .followup-automation-title{gap:14px}
+ #page-followups .followup-lower{grid-template-columns:1fr}
+ #page-followups .followup-lower td{font-size:14px}
+ #page-followups .followup-lower .person-name{max-width:220px;font-size:14px}
+ #page-followups .followup-schedules .person-main{display:block}
+ #page-followups .followup-schedules .person-sub{margin-top:3px}
+}
+@media(max-width:800px){
+ #page-followups .followup-automation{display:block}
+ #page-followups .followup-automation-main{min-width:0;border:0;padding:0 0 12px}
+ #page-followups #auto-batch-info{border-top:1px solid var(--border);padding-top:12px}
+ #page-followups .batch-summary{align-items:stretch;padding:16px;flex-direction:column}
+ #page-followups .batch-summary-actions{gap:8px}
+ #page-followups .batch-summary-actions .btn{flex:1}
+ #page-followups .followup-schedules{padding:0 12px 8px}
+ #page-followups .followup-tab{font-size:16px}
+ #page-followups .followup-lower .table-wrap{overflow:auto}
+ #page-followups .batch-customer-item{flex-wrap:wrap}
+}
