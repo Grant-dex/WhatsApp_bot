@@ -111,3 +111,71 @@ class SchedulerTenantTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BridgeWatchdogTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="wa-watchdog-"))
+        self._old_env = os.environ.get("WHATSAPP_BOT_DATA_DIR")
+        os.environ["WHATSAPP_BOT_DATA_DIR"] = str(self.tmp)
+        self.bm = importlib.reload(importlib.import_module("bridge_manager"))
+        self.bm._ports.clear()
+        self.bm._procs.clear()
+        self.bm._enabled.clear()
+        self.bm._restarts.clear()
+
+    def tearDown(self):
+        if self._old_env is None:
+            os.environ.pop("WHATSAPP_BOT_DATA_DIR", None)
+        else:
+            os.environ["WHATSAPP_BOT_DATA_DIR"] = self._old_env
+
+    def _tenant(self):
+        return Tenant("u1", "u1@example.com", self.tmp / "tenants" / "u1")
+
+    def test_restarts_dead_bridge_once(self):
+        self.bm._ports["u1"] = 3999
+        self.bm._enabled["u1"] = True
+        calls = []
+        with patch.object(self.bm, "_alive", return_value=False), \
+             patch.object(self.bm, "_tenant_for", return_value=self._tenant()), \
+             patch.object(self.bm, "start", side_effect=lambda t: calls.append(t) or {"online": True, "port": 3999}):
+            results = self.bm.reconcile()
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(results[0]["action"], "restarted")
+
+    def test_healthy_bridge_is_left_alone(self):
+        self.bm._ports["u1"] = 3999
+        self.bm._enabled["u1"] = True
+        with patch.object(self.bm, "_alive", return_value=True), \
+             patch.object(self.bm, "start") as start_mock:
+            self.bm.reconcile()
+        start_mock.assert_not_called()
+
+    def test_gives_up_after_repeated_crashes(self):
+        self.bm._ports["u1"] = 3999
+        self.bm._enabled["u1"] = True
+        import time as _time
+        self.bm._restarts["u1"] = [_time.time() for _ in range(3)]
+        with patch.object(self.bm, "_alive", return_value=False), \
+             patch.object(self.bm, "start") as start_mock:
+            results = self.bm.reconcile()
+        start_mock.assert_not_called()
+        self.assertEqual(results[0]["action"], "disabled")
+        self.assertNotIn("u1", self.bm._enabled)
+
+    def test_started_bridge_is_marked_enabled(self):
+        tenant = self._tenant()
+        self.bm._enabled.clear()
+        fake_proc = unittest.mock.MagicMock()
+        fake_proc.poll.return_value = None
+        fake_proc.pid = 123
+
+        with patch.object(self.bm, "_node_bin", return_value="/usr/bin/node"), \
+             patch.object(self.bm, "_allocate_port", return_value=3998), \
+             patch.object(self.bm, "_alive", return_value=True), \
+             patch.object(self.bm, "_api_port", return_value=8000), \
+             patch.object(self.bm.subprocess, "Popen", return_value=fake_proc), \
+             patch.object(self.bm, "_save_registry"):
+            self.bm.start(tenant)
+        self.assertTrue(self.bm._enabled.get("u1"))

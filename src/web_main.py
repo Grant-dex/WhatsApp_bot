@@ -197,6 +197,9 @@ def main(argv=None) -> int:
     else:
         from scheduler import start_scheduler
         start_scheduler()
+        # bridge 崩溃自动拉起（用户主动启动过才会被守护）
+        import bridge_manager
+        bridge_manager.start_watchdog()
 
     shown_host = "127.0.0.1" if args.host in ("0.0.0.0", "") else args.host
     url = f"http://{shown_host}:{args.port}"
