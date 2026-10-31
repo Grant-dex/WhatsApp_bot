@@ -26,7 +26,7 @@ async function loadBridge(el) {
     ? `<div class="qr-panel-body"><span class="stat-icon green" style="width:54px;height:54px;border-radius:15px">${uiIcon('whatsapp')}</span><div style="font-size:14px;font-weight:600">当前账号已连接</div><div class="text-muted text-sm">${escapeHtml(phoneLabel)}</div><div class="text-muted text-xs">如需更换账号，请先退出登录后重启桥接进程。</div></div>`
     : online
       ? `<div class="qr-panel-body" id="qr-area" style="display:none"><div class="qr-container"><div class="qr-hint">正在加载二维码...</div></div></div><div id="qr-success" class="qr-success" style="display:none">二维码已扫码，等待连接...</div><div class="qr-panel-body" id="qr-placeholder"><span class="stat-icon orange" style="width:54px;height:54px;border-radius:15px">${uiIcon('qr')}</span><div class="text-muted text-sm">点击“显示二维码”后扫码登录 WhatsApp</div></div>`
-      : `<div class="qr-panel-body"><span class="stat-icon red" style="width:54px;height:54px;border-radius:15px">${uiIcon('bridge')}</span><div style="font-size:13px;font-weight:600">桥接进程未运行</div><div class="text-muted text-xs">请用 --with-bridge 启动 Web 服务，再扫码登录。</div></div>`;
+      : `<div class="qr-panel-body"><span class="stat-icon red" style="width:54px;height:54px;border-radius:15px">${uiIcon('bridge')}</span><div style="font-size:13px;font-weight:600">桥接未运行</div><div class="text-muted text-xs">为当前账号启动一个独立的 WhatsApp 连接</div><button class="btn btn-primary btn-sm" style="margin-top:14px" onclick="startBridge()">启动连接</button><div class="text-muted text-xs" id="bridge-start-hint" style="margin-top:8px"></div></div>`;
 
   el.innerHTML = `
     ${pageHeader('桥接状态', 'WhatsApp 连接监控', `<button class="btn btn-outline btn-sm" onclick="loadPage('bridge')">${uiIcon('refresh')} 刷新状态</button>`)}
@@ -110,3 +110,19 @@ async function saveProxy(btn) {
   }
 }
 
+
+
+async function startBridge() {
+  const hint = document.getElementById('bridge-start-hint');
+  if (hint) hint.textContent = '正在启动…';
+  try {
+    const r = await post('/bridge/start', {});
+    if (!r || r.ok === false) {
+      if (hint) hint.textContent = (r && r.error) || '启动失败';
+      return;
+    }
+    await loadPage('bridge');
+  } catch (e) {
+    if (hint) hint.textContent = '启动失败：' + (e && e.message ? e.message : e);
+  }
+}

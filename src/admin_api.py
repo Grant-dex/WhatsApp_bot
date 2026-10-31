@@ -1186,6 +1186,35 @@ async def clear_qr():
 
 # ── Bridge ─────────────────────────────────────────────────────────────────────
 
+@router.post("/bridge/start")
+async def bridge_start():
+    """为当前租户拉起一个独立的 bridge 进程（已运行则复用）。"""
+    import bridge_manager
+    import tenancy
+
+    tenant = tenancy.current()
+    if tenant is None:
+        return {"ok": False, "error": "需要登录"}
+    try:
+        result = bridge_manager.start(tenant)
+    except Exception as exc:
+        logger.warning("bridge 启动失败: %s", exc)
+        return {"ok": False, "error": str(exc)}
+    return {"ok": True, **result}
+
+
+@router.post("/bridge/stop")
+async def bridge_stop():
+    import bridge_manager
+    import tenancy
+
+    tenant = tenancy.current()
+    if tenant is None:
+        return {"ok": False, "error": "需要登录"}
+    bridge_manager.stop(tenant.user_id)
+    return {"ok": True}
+
+
 @router.get("/bridge")
 async def bridge_status():
     status = await _get_bridge_status()
@@ -1330,7 +1359,9 @@ async def _get_bridge_status() -> dict:
     cfg = get_config()
     try:
         async with httpx.AsyncClient(timeout=3.0, trust_env=False) as client:
-            resp = await client.get(f"http://{cfg.bridge.host}:{cfg.bridge.port}/status")
+            import bridge_manager
+            port = bridge_manager.current_port()
+            resp = await client.get(f"http://{cfg.bridge.host}:{port}/status")
             resp.raise_for_status()
             bs = resp.json()
             if not isinstance(bs, dict) or not isinstance(bs.get("authenticated"), bool):

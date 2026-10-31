@@ -11,6 +11,8 @@ const BRIDGE_HOST = process.env.BRIDGE_HOST || '127.0.0.1';
 const PYTHON_API = process.env.PYTHON_API || 'http://127.0.0.1:8000';
 const DATA_DIR = process.env.WHATSAPP_BOT_DATA_DIR || path.join(__dirname, '..');
 const AUTH_DIR = path.join(DATA_DIR, 'data', '.baileys-auth');
+const TENANT_ID = process.env.WA_TENANT_ID || '';
+const TENANT_HEADERS = TENANT_ID ? { 'X-Tenant-Id': TENANT_ID } : {};
 
 const app = express();
 app.use(express.json());
@@ -49,7 +51,8 @@ async function notifyPython(path, body, options = {}) {
     for (let attempt = 0; attempt <= retries; attempt++) {
         try {
             const r = await fetch(`${PYTHON_API}${path}`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...TENANT_HEADERS },
                 body: JSON.stringify(body)
             });
             if (r.ok) return true;
@@ -91,7 +94,8 @@ async function sendText(phone, message, timeoutMs = 15000) {
 async function forwardToPython(phone, body, msgId, timestamp) {
     try {
         const r = await fetch(`${PYTHON_API}/webhook/message`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...TENANT_HEADERS },
             body: JSON.stringify({ from: phone, body, msg_id: msgId || null, timestamp: timestamp ? String(timestamp) : null })
         });
         const result = await r.json(); console.log("[webhook] response:", JSON.stringify(result));

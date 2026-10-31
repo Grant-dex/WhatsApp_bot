@@ -117,6 +117,25 @@ def start_bridge(bridge_port: int, api_port: int, data_dir: Path):
     return subprocess.Popen(["node", str(script)], cwd=str(ROOT), env=env)
 
 
+def _start_owner_bridge(_api_port: int) -> None:
+    """兼容旧参数：为管理员账号拉起 bridge（其余用户按需启动）。"""
+    import accounts
+    import bridge_manager
+    from tenancy import Tenant
+
+    users = accounts.list_users()
+    owner = next((u for u in users if u.get("is_owner")), users[0] if users else None)
+    if not owner:
+        logger.warning("尚无账号，跳过 --with-bridge")
+        return
+    tenant = Tenant(owner["id"], owner["email"], Path(owner["data_dir"]))
+    try:
+        status = bridge_manager.start(tenant)
+        logger.info("Bridge 已启动（%s）: port=%s", owner["email"], status.get("port"))
+    except Exception as exc:
+        logger.error("Bridge 启动失败: %s", exc)
+
+
 def main(argv=None) -> int:
     args = parse_args(argv)
 
@@ -168,10 +187,10 @@ def main(argv=None) -> int:
     from message_router import handle_incoming_message
     set_message_handler(handle_incoming_message)
 
-    bridge_proc = (start_bridge(args.bridge_port, args.port, data_dir)
-                   if args.with_bridge else None)
-    if not args.with_bridge:
-        logger.info("Bridge not started (pass --with-bridge to connect WhatsApp)")
+    if args.with_bridge:
+        _start_owner_bridge(args.port)
+    else:
+        logger.info("Bridge 未启动（用户可在控制台点击“启动连接”按需拉起）")
 
     if args.no_scheduler:
         logger.info("Scheduler disabled (--no-scheduler)")
@@ -192,13 +211,12 @@ def main(argv=None) -> int:
     except KeyboardInterrupt:
         pass
     finally:
-        if bridge_proc and bridge_proc.poll() is None:
-            logger.info("Stopping bridge...")
-            bridge_proc.terminate()
-            try:
-                bridge_proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                bridge_proc.kill()
+        try:
+            import bridge_manager
+            logger.info("Stopping bridges...")
+            bridge_manager.shutdown_all()
+        except Exception:
+            logger.exception("关闭 bridge 进程失败")
         logger.info("Stopped.")
     return 0
 

@@ -50,7 +50,9 @@ async def send_message(phone: str, message: str, max_retries: int = 2,
     if phone.endswith("@lid"):
         phone = phone.replace("@lid", "@c.us")
     cfg = get_config()
-    url = f"http://{cfg.bridge.host}:{cfg.bridge.port}/send"
+    import bridge_manager
+    port = bridge_manager.current_port()
+    url = f"http://{cfg.bridge.host}:{port}/send"
     payload = {"phone": phone, "message": message}
 
     attempts = max(1, int(max_retries))

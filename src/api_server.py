@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -104,56 +104,95 @@ def set_message_handler(handler):
     _message_handler = handler
 
 
-@app.post("/webhook/message")
-async def receive_message(msg: IncomingMessage):
-    logger.info(f"[inbound] from={msg.from_} body={msg.body[:80]}")
-    if _message_handler is None:
-        return {"action": "ignore", "reason": "no handler"}
+
+def _bind_tenant(request: Request):
+    """按 bridge 回调里的 X-Tenant-Id 切换上下文；返回 reset token。"""
+    tid = (request.headers.get("x-tenant-id") or "").strip()
+    if not tid:
+        return None
     try:
-        return await _message_handler(msg.from_, msg.body, msg.msg_id)
-    except Exception as e:
-        logger.error(f"Message handler error: {e}", exc_info=True)
-        return {"action": "ignore", "reason": "error"}
+        import accounts
+        import tenancy
+        user = accounts.get_user(tid)
+        if not user:
+            logger.warning("webhook 携带了未知租户: %s", tid)
+            return None
+        return tenancy.set_current(tenancy.Tenant(
+            user_id=user["id"], email=user["email"], data_dir=Path(user["data_dir"])))
+    except Exception:
+        logger.exception("webhook 绑定租户失败: %s", tid)
+        return None
+
+
+@app.post("/webhook/message")
+async def receive_message(msg: IncomingMessage, request: Request):
+    token = _bind_tenant(request)
+    try:
+        logger.info(f"[inbound] from={msg.from_} body={msg.body[:80]}")
+        if _message_handler is None:
+            return {"action": "ignore", "reason": "no handler"}
+        try:
+            return await _message_handler(msg.from_, msg.body, msg.msg_id)
+        except Exception as e:
+            logger.error(f"Message handler error: {e}", exc_info=True)
+            return {"action": "ignore", "reason": "error"}
+    finally:
+        if token is not None:
+            import tenancy
+            tenancy.reset_current(token)
 
 
 @app.post("/webhook/delivery")
-async def receive_delivery(receipt: DeliveryReceipt):
+async def receive_delivery(receipt: DeliveryReceipt, request: Request):
     """Idempotent delivery receipt from the bridge.
 
     The bridge sends instant replies itself, then reports the real platform
     message id and status here. Repeating a receipt is a no-op and never
     creates a second conversation row.
     """
-    if receipt.status not in ("sent", "failed", "unknown"):
-        return {"ok": False, "changed": False,
-                "error": "status must be sent, failed or unknown"}
-    from send_service import apply_delivery_receipt
-    result = apply_delivery_receipt(
-        receipt.conversation_id,
-        receipt.status,
-        whatsapp_msg_id=receipt.whatsapp_msg_id,
-        error=receipt.error or receipt.error_code,
-        whatsapp_msg_id_lookup=receipt.whatsapp_msg_id,
-    )
-    logger.info(
-        "[delivery] conversation=%s status=%s msg_id=%s changed=%s",
-        receipt.conversation_id, receipt.status, receipt.whatsapp_msg_id,
-        result.get("changed"),
-    )
-    return result
+    token = _bind_tenant(request)
+    try:
+        if receipt.status not in ("sent", "failed", "unknown"):
+            return {"ok": False, "changed": False,
+                    "error": "status must be sent, failed or unknown"}
+        from send_service import apply_delivery_receipt
+        result = apply_delivery_receipt(
+            receipt.conversation_id,
+            receipt.status,
+            whatsapp_msg_id=receipt.whatsapp_msg_id,
+            error=receipt.error or receipt.error_code,
+            whatsapp_msg_id_lookup=receipt.whatsapp_msg_id,
+        )
+        logger.info(
+            "[delivery] conversation=%s status=%s msg_id=%s changed=%s",
+            receipt.conversation_id, receipt.status, receipt.whatsapp_msg_id,
+            result.get("changed"),
+        )
+        return result
+    finally:
+        if token is not None:
+            import tenancy
+            tenancy.reset_current(token)
 
 
 @app.post("/webhook/qr")
-async def receive_qr(data: dict):
+async def receive_qr(data: dict, request: Request):
     from qr_state import set_pending_qr, clear_pending_qr
-    qr_text = data.get("qr_text")
-    if qr_text:
-        set_pending_qr(qr_text)
-        logger.info("[qr] QR code received from bridge")
-    else:
-        clear_pending_qr()
-        logger.info("[qr] QR code cleared (WhatsApp connected)")
-    return {"status": "ok"}
+
+    token = _bind_tenant(request)
+    try:
+        qr_text = data.get("qr_text")
+        if qr_text:
+            set_pending_qr(qr_text)
+            logger.info("[qr] QR code received from bridge")
+        else:
+            clear_pending_qr()
+            logger.info("[qr] QR code cleared (WhatsApp connected)")
+        return {"status": "ok"}
+    finally:
+        if token is not None:
+            import tenancy
+            tenancy.reset_current(token)
 
 
 @app.get("/health")

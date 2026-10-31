@@ -10,6 +10,11 @@ import asyncio
 import logging
 import threading
 from datetime import datetime
+from pathlib import Path
+from typing import Iterator, Optional
+
+import tenancy
+from tenancy import Tenant
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -22,6 +27,38 @@ from send_service import is_quiet_hours, send_followup_now
 
 logger = logging.getLogger(__name__)
 _check_lock = threading.Lock()
+
+
+# ── 多租户：每个用户各跑一遍 ────────────────────────────────────────────
+
+def _iter_tenants() -> Iterator[Optional[Tenant]]:
+    """依次产出已注册用户；一个都没注册时退回无租户模式跑一次。"""
+    import accounts
+
+    try:
+        users = accounts.list_users()
+    except Exception:
+        logger.exception("读取账号列表失败，退回单租户模式")
+        users = []
+    if not users:
+        yield None
+        return
+    for user in users:
+        yield Tenant(user_id=user["id"], email=user["email"],
+                     data_dir=Path(user["data_dir"]))
+
+
+def _run_for_tenants(job) -> None:
+    for tenant in _iter_tenants():
+        token = tenancy.set_current(tenant) if tenant else None
+        try:
+            job()
+        except Exception:
+            logger.exception("定时任务失败 tenant=%s",
+                             tenant.user_id if tenant else "default")
+        finally:
+            if token is not None:
+                tenancy.reset_current(token)
 
 
 def _count_today_auto_sent() -> int:
@@ -129,12 +166,17 @@ async def check_followups():
     return await _run_followup_pass("Follow-up check", get_random_delay())
 
 
-def run_check_followups():
+def _check_followups_once():
     loop = asyncio.new_event_loop()
     try:
         loop.run_until_complete(check_followups())
     finally:
         loop.close()
+
+
+def run_check_followups():
+    """每个租户各检查一次到期跟进。"""
+    _run_for_tenants(_check_followups_once)
 
 
 def start_scheduler():
@@ -166,13 +208,14 @@ def start_scheduler():
     return scheduler
 
 
+def _daily_agent_workflow_once():
+    from agent_brain import daily_agent_workflow
+    daily_agent_workflow()
+
+
 def run_daily_agent_workflow():
-    """Wrapper to run the async daily agent workflow in the scheduler thread."""
-    try:
-        from agent_brain import daily_agent_workflow
-        daily_agent_workflow()
-    except Exception as e:
-        logger.error(f"Daily agent workflow error: {e}", exc_info=True)
+    """每个租户各跑一次每日 agent 工作流。"""
+    _run_for_tenants(_daily_agent_workflow_once)
 
 
 async def auto_batch_push():
@@ -187,12 +230,17 @@ async def auto_batch_push():
     return await _run_followup_pass("Auto-batch", 120)
 
 
-def run_auto_batch_push():
+def _auto_batch_push_once():
     loop = asyncio.new_event_loop()
     try:
         loop.run_until_complete(auto_batch_push())
     finally:
         loop.close()
+
+
+def run_auto_batch_push():
+    """每个租户各跑一次 10:00 自动跟进。"""
+    _run_for_tenants(_auto_batch_push_once)
 
 
 def _wal_checkpoint():
