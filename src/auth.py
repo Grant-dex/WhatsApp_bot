@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+import secrets
 import time
 from collections import deque
 from pathlib import Path
@@ -19,6 +20,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
 import accounts
+import cf_access
 import tenancy
 from tenancy import Tenant
 
@@ -111,7 +113,15 @@ def _login_html() -> str:
 # ── 页面 ────────────────────────────────────────────────────────────────
 
 @router.get("/login")
-async def login_page():
+async def login_page(request: Request):
+    # 已经过了 Cloudflare Access 的人不该再看到登录页
+    if cf_access.enabled() and request.cookies.get(cf_access.COOKIE_NAME):
+        result = _cf_login(request)
+        if result:
+            _, token = result
+            resp = RedirectResponse("/", status_code=302)
+            _set_session_cookie(resp, token, request)
+            return resp
     return HTMLResponse(_login_html())
 
 
@@ -250,6 +260,47 @@ def _is_local(request: Request) -> bool:
     return host in ("127.0.0.1", "::1", "localhost")
 
 
+def _provision_from_email(email: str) -> dict:
+    """CF Access 验证过的邮箱首次登录时，自动开一个租户。"""
+    import uuid
+
+    user_id = uuid.uuid4().hex
+    template = Path(__file__).resolve().parent.parent / "config.yaml"
+    data_dir = tenancy.ensure_tenant_dir(user_id, template=template)
+    password = secrets.token_urlsafe(24)  # 随机密码，用户走 SSO 不需要它
+    user = accounts.create_user(email, password, data_dir, user_id=user_id)
+    logger.info("[auth] SSO 自动开通租户 %s -> %s", email, data_dir)
+    return user
+
+
+def _cf_login(request: Request):
+    """尝试用 Cloudflare Access 的身份直接登录；成功返回 (session, new_token)。"""
+    if not cf_access.enabled():
+        return None
+    cf_token = request.cookies.get(cf_access.COOKIE_NAME)
+    email = cf_access.identity_email(cf_token) if cf_token else None
+    if not email:
+        return None
+
+    user = accounts.get_user_by_email(email)
+    if user is None:
+        try:
+            user = _provision_from_email(email)
+        except ValueError:
+            user = accounts.get_user_by_email(email)
+        except Exception:
+            logger.exception("[auth] SSO 自动开通失败 %s", email)
+            return None
+    if not user or user.get("status") != "active":
+        return None
+
+    token = accounts.create_session(user["id"], _client_ip(request),
+                                    request.headers.get("user-agent", ""))
+    logger.info("[auth] SSO 登录 %s", email)
+    return ({"user_id": user["id"], "email": user["email"],
+             "data_dir": user["data_dir"]}, token)
+
+
 async def middleware(request: Request, call_next):
     path = request.url.path
 
@@ -262,6 +313,13 @@ async def middleware(request: Request, call_next):
 
     token = request.cookies.get(accounts.SESSION_COOKIE)
     session = accounts.resolve_session(token) if token else None
+
+    new_token = None
+    if not session:
+        # 走 Cloudflare Access 的单点登录：过一次验证就直接进
+        cf_result = _cf_login(request)
+        if cf_result:
+            session, new_token = cf_result
 
     if not session:
         if path.startswith(("/api/", "/admin/api/")):
@@ -279,6 +337,8 @@ async def middleware(request: Request, call_next):
         response = await call_next(request)
     finally:
         tenancy.reset_current(cv_token)
+    if new_token:
+        _set_session_cookie(response, new_token, request)
     return response
 
 

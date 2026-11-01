@@ -107,6 +107,36 @@ Cloudflare Zero Trust → Access → Applications → Add：
 | `API_HOST` / `API_PORT` | `127.0.0.1` / `8000` | 监听地址 |
 | `BRIDGE_PORT` | `3001` | 单租户回退端口；多租户由 `bridge_manager` 分配 3101+ |
 
+## 5.5 用 Access 直接登录（免密码）
+
+应用支持"过了 Cloudflare Access 就直接进"，用户完全看不到应用自己的登录页。
+
+1. 按第 5 节把 Access 应用建好（域名 `bot.example.com`）
+2. 在 Zero Trust 控制台右上角复制你的 **team domain**，形如 `https://yourteam.cloudflareaccess.com`
+3. 启动服务时带上环境变量：
+
+```yaml
+# docker-compose.yml
+environment:
+  CF_ACCESS_TEAM_DOMAIN: "https://yourteam.cloudflareaccess.com"
+  CF_ACCESS_AUTO_LOGIN: "1"     # 设为 0 可关闭
+```
+
+打开 `https://bot.example.com` 的流程就变成：
+
+```
+Cloudflare Access 验证邮箱（一次性验证码）
+        ↓
+应用自动创建/匹配账号 → 种 session cookie → 直接进控制台
+```
+
+首次出现的邮箱会自动开通一个独立租户（随机密码，反正走 SSO 用不到），
+之后的访问直接复用。不想让人自助开通，就关闭 `WA_ALLOW_SIGNUP` 并只放行指定邮箱。
+
+> 安全说明：服务端拿浏览器里的 `CF_Authorization` cookie 去 Cloudflare 的
+> `/cdn-cgi/access/get-identity` 换取身份，验证发生在 Cloudflare 侧，
+> 伪造请求头或 cookie 都不会被放行。
+
 ## 6.5 出站代理
 
 WhatsApp 对机房 IP 不算友好，很多时候必须挂代理。优先级从高到低：
