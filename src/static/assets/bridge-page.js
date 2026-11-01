@@ -20,7 +20,8 @@ async function loadBridge(el) {
   }).join('');
 
   const qrAction = (!auth && online)
-    ? `<button class="btn btn-outline btn-sm" id="qr-toggle-btn" onclick="toggleQr()">${uiIcon('qr')} 显示二维码</button>`
+    ? `<button class="btn btn-outline btn-sm" onclick="restartBridge()">${uiIcon('refresh')} 重启连接</button>
+       <button class="btn btn-outline btn-sm" id="qr-toggle-btn" onclick="toggleQr()">${uiIcon('qr')} 显示二维码</button>`
     : '';
   const qrBody = auth
     ? `<div class="qr-panel-body"><span class="stat-icon green" style="width:54px;height:54px;border-radius:15px">${uiIcon('whatsapp')}</span><div style="font-size:14px;font-weight:600">当前账号已连接</div><div class="text-muted text-sm">${escapeHtml(phoneLabel)}</div><div class="text-muted text-xs">如需更换账号，请先退出登录后重启桥接进程。</div></div>`

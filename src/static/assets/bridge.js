@@ -1,6 +1,7 @@
 /* ── Bridge ────────────────────────────────────────────────── */
 
 let qrcodeLoaded = false;
+let qrWaitStarted = 0;
 
 function loadQrCodeLib() {
   // qrcodejs is bundled above; no runtime CDN request is needed.
@@ -12,6 +13,7 @@ function loadQrCodeLib() {
 async function startQrPolling() {
   if (qrPollTimer) return;
   await loadQrCodeLib();
+  qrWaitStarted = Date.now();
   qrPollTimer = setInterval(async () => {
     try {
       const r = await get('/qr');
@@ -27,7 +29,18 @@ async function startQrPolling() {
         if (successDiv) successDiv.style.display = 'none';
       } else if (r.status === 'none') {
         const qrEl = document.getElementById('qr-code');
-        if (qrEl && qrEl.hasChildNodes()) {
+        if (!qrEl || !qrEl.hasChildNodes()) {
+          // 还没拿到二维码：按等待时长给不同提示，避免一直停在“正在加载”
+          const waited = Math.round((Date.now() - qrWaitStarted) / 1000);
+          const hint = qrDiv.querySelector('.qr-hint');
+          if (hint) {
+            if (waited > 40) {
+              hint.innerHTML = '已经等了 ' + waited + ' 秒还没收到二维码。<br>桥接可能在反复重连 —— 点右上角「重启连接」，或查看 logs/bridge.log。';
+            } else if (waited > 10) {
+              hint.textContent = '正在等待二维码…（桥接正在连接 WhatsApp，通常几秒内出现）';
+            }
+          }
+        } else if (qrEl && qrEl.hasChildNodes()) {
           const successDiv = document.getElementById('qr-success');
           if (successDiv) successDiv.style.display = 'block';
           qrDiv.innerHTML = '<div class="qr-container"><div class="qr-success" style="display:block">二维码已失效或已处理，请刷新连接状态</div></div>';
@@ -43,6 +56,22 @@ async function startQrPolling() {
       clearInterval(qrPollTimer); qrPollTimer = null;
     }
   }, 3000);
+}
+
+async function restartBridge() {
+  const hint = document.getElementById('bridge-start-hint');
+  try {
+    await post('/bridge/stop', {});
+    await new Promise(r => setTimeout(r, 900));
+    const r = await post('/bridge/start', {});
+    if (r && r.ok === false) {
+      alert('重启失败：' + (r.error || '未知错误'));
+      return;
+    }
+    await loadPage('bridge');
+  } catch (e) {
+    if (hint) hint.textContent = '重启失败：' + (e && e.message ? e.message : e);
+  }
 }
 
 function toggleQr() {
