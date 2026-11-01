@@ -139,6 +139,10 @@
         <label for="password">密码</label>
         <input id="password" type="password" name="password" autocomplete="current-password" placeholder="至少 8 位" required>
       </div>
+      <div class="field" id="code-wrap" style="display:none">
+        <label for="code">邀请码</label>
+        <input id="code" type="text" autocomplete="off" placeholder="向管理员索取">
+      </div>
       <div class="field" id="confirm-wrap" style="display:none">
         <label for="confirm">确认密码</label>
         <input id="confirm" type="password" autocomplete="new-password" placeholder="再输一次">
@@ -159,6 +163,7 @@
   const confirmWrap = $('confirm-wrap'), hint = $('mode-hint');
 
   let mode = 'login';          // login | register | bootstrap
+  let codeRequired = false;
   let next = new URLSearchParams(location.search).get('next') || '/';
 
   function showError(msg) {
@@ -172,6 +177,8 @@
     tabLogin.classList.toggle('on', isLogin);
     tabReg.classList.toggle('on', !isLogin);
     confirmWrap.style.display = isLogin ? 'none' : 'block';
+    document.getElementById('code-wrap').style.display =
+      (!isLogin && codeRequired) ? 'block' : 'none';
     submit.textContent = isLogin ? '登录'
       : (mode === 'bootstrap' ? '创建管理员账号' : '创建账号');
     $('password').setAttribute('autocomplete', isLogin ? 'current-password' : 'new-password');
@@ -188,6 +195,7 @@
     try {
       const r = await fetch('/api/auth/status', { credentials: 'same-origin' });
       const s = await r.json();
+      codeRequired = !!s.signup_code_required;
       if (!s.has_users) { mode = 'bootstrap'; }
       else if (!s.allow_signup) { tabReg.style.display = 'none'; }
       if (s.authed) { location.replace(next); return; }
@@ -209,6 +217,10 @@
       if (password !== $('confirm').value) return showError('两次输入的密码不一致');
     }
 
+    if (mode === 'register' && codeRequired && !$('code').value.trim()) {
+      return showError('请输入邀请码');
+    }
+
     const url = mode === 'login' ? '/api/auth/login'
               : mode === 'bootstrap' ? '/api/auth/bootstrap'
               : '/api/auth/register';
@@ -221,7 +233,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password, code: $('code').value.trim() })
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data.error || `请求失败 (${r.status})`);

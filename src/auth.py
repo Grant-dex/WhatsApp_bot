@@ -33,6 +33,8 @@ _PUBLIC_EXACT = {"/login", "/health", "/favicon.ico", "/robots.txt"}
 _PUBLIC_PREFIXES = ("/assets/", "/api/auth/")
 
 _ALLOW_SIGNUP = os.getenv("WA_ALLOW_SIGNUP", "1") not in ("0", "false", "no")
+# 设置后，自助注册必须带正确的邀请码
+_SIGNUP_CODE = (os.getenv("WA_SIGNUP_CODE", "") or "").strip()
 
 
 # ── 登录限流（内存，单进程足够） ─────────────────────────────────────────
@@ -136,6 +138,7 @@ async def auth_status(request: Request):
         "authed": bool(session),
         "email": session["email"] if session else None,
         "allow_signup": _ALLOW_SIGNUP,
+        "signup_code_required": bool(_SIGNUP_CODE),
     }
 
 
@@ -174,6 +177,9 @@ async def register(request: Request):
     body = await request.json()
     email = (body.get("email") or "").strip()
     password = body.get("password") or ""
+
+    if _SIGNUP_CODE and (body.get("code") or "").strip() != _SIGNUP_CODE:
+        return JSONResponse({"error": "邀请码不正确"}, status_code=403)
 
     # 先校验邮箱格式，避免建了目录才发现重名
     if "@" not in email or len(email) < 5:
