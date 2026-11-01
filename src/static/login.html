@@ -164,6 +164,8 @@
 
   let mode = 'login';          // login | register | bootstrap
   let codeRequired = false;
+  // 邀请链接：/login?invite=XXXX 自动切到注册并填好邀请码
+  const inviteCode = new URLSearchParams(location.search).get('invite') || '';
   let next = new URLSearchParams(location.search).get('next') || '/';
 
   function showError(msg) {
@@ -198,9 +200,15 @@
       codeRequired = !!s.signup_code_required;
       if (!s.has_users) { mode = 'bootstrap'; }
       else if (!s.allow_signup) { tabReg.style.display = 'none'; }
+      else if (inviteCode) { mode = 'register'; }
       if (s.authed) { location.replace(next); return; }
     } catch (e) { /* 离线时按登录处理 */ }
     render();
+    if (inviteCode) {
+      const el = $('code');
+      if (el) { el.value = inviteCode; }
+      $('email').focus();
+    }
   }
 
   tabLogin.addEventListener('click', () => { mode = 'login'; render(); });
