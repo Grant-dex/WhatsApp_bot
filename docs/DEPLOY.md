@@ -149,6 +149,29 @@ WA_SIGNUP_CODE=XUEAI-7K3P
 登录页会在「创建账号」标签下自动出现邀请码输入框；不填或填错返回 403。
 留空则退回开放注册（默认行为）。
 
+## 5.7 关闭注册后如何加人
+
+`data/.env` 里设 `WA_ALLOW_SIGNUP=0` 后，登录页只剩「登录」，任何人都无法自助注册。
+
+加人用命令行：
+
+```bash
+# 随机生成密码
+python scripts/create_user.py colleague@example.com
+
+# 指定密码
+python scripts/create_user.py colleague@example.com --password 'strong-pass-9'
+
+# 看现有账号
+python scripts/create_user.py --list
+```
+
+脚本会自动创建该用户的租户目录（`data/tenants/<id>/`），并打印一次密码——
+把邮箱和密码发给对方即可。
+
+> 目前没有「修改密码」页面，密码请用脚本另行重置：
+> 删除账号不提供命令，必要时手工编辑 `data/accounts.db`。
+
 ## 6.5 出站代理
 
 WhatsApp 对机房 IP 不算友好，很多时候必须挂代理。优先级从高到低：
