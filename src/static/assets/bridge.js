@@ -22,7 +22,7 @@ async function startQrPolling() {
       if (r.status === 'pending' && r.qr_text) {
         qrDiv.innerHTML = '<div class="qr-container"><div id="qr-code"></div>'
           + '<div class="qr-hint">用手机 WhatsApp 扫描</div>'
-          + '<div class="qr-tip">二维码每 20 秒刷新一次，扫的时候别停顿；过期了点「刷新状态」拿新的</div>'
+          + '<div class="qr-tip">20 秒刷新 · 过期点「刷新状态」</div>'
           + '</div>';
         const el = document.getElementById('qr-code');
         if (el && !el.hasChildNodes() && window.QRCode) {
