@@ -458,6 +458,7 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
 .qr-container{text-align:center;padding:18px}
 .qr-container canvas{border:10px solid #fff;border-radius:12px;box-shadow:0 6px 24px rgba(20,35,38,.12)}
 .qr-hint{font-size:12px;color:var(--text2);margin-top:12px;line-height:1.5}
+.qr-tip{font-size:11px;color:#9BAEB3;margin-top:8px;line-height:1.55;max-width:260px;text-align:center;margin-left:auto;margin-right:auto}
 .qr-success{text-align:center;padding:20px;color:var(--green);font-weight:600;display:none;font-size:14px}
 
 /* ── Toast / copy ───────────────────────────────────────────── */

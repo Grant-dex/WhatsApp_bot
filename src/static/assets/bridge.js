@@ -20,7 +20,10 @@ async function startQrPolling() {
       const qrDiv = document.getElementById('qr-area');
       if (!qrDiv) { clearInterval(qrPollTimer); qrPollTimer = null; return; }
       if (r.status === 'pending' && r.qr_text) {
-        qrDiv.innerHTML = '<div class="qr-container"><div id="qr-code"></div><div class="qr-hint">请用手机 WhatsApp 扫描二维码登录</div></div>';
+        qrDiv.innerHTML = '<div class="qr-container"><div id="qr-code"></div>'
+          + '<div class="qr-hint">用手机 WhatsApp 扫描</div>'
+          + '<div class="qr-tip">二维码每 20 秒刷新一次，扫的时候别停顿；过期了点「刷新状态」拿新的</div>'
+          + '</div>';
         const el = document.getElementById('qr-code');
         if (el && !el.hasChildNodes() && window.QRCode) {
           new QRCode(el, { text: r.qr_text, width: 220, height: 220, colorDark: '#0F766E', colorLight: '#FFFFFF' });
